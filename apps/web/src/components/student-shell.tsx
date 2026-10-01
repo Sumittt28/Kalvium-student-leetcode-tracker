@@ -16,7 +16,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTheme } from 'next-themes';
 import {
   CalendarCheck,
@@ -46,6 +46,7 @@ const NAV = [
 export function StudentShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [checkedAuth, setCheckedAuth] = useState(false);
 
   useEffect(() => {
@@ -132,6 +133,7 @@ export function StudentShell({ children }: { children: ReactNode }) {
               const refresh = tokenStore.refresh;
               if (refresh) void api.logout(refresh).catch(() => undefined);
               tokenStore.clear();
+              queryClient.clear();
               router.replace('/login');
             }}
           >

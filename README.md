@@ -173,7 +173,7 @@ build (redeploy Vercel if it changes), and **never set `PORT`** (Render injects 
 | Variable | Where | Required | Description |
 |---|---|---|---|
 | `DATABASE_URL` | Backend | ✅ | Neon PostgreSQL connection string (pooled, `sslmode=require`). |
-| `NEXT_PUBLIC_API_URL` | Frontend (Vercel) | ✅ | Backend base URL incl. prefix, e.g. `https://api.onrender.com/api/v1`. Build-time. |
+| `NEXT_PUBLIC_API_URL` | Frontend (Vercel) | ✅ | Backend base URL, e.g. `https://api.onrender.com/api/v1` (`/api/v1` is appended if omitted). Build-time. |
 | `JWT_ACCESS_SECRET` | Backend | ✅ | ≥32 chars, random. Signs access tokens. |
 | `JWT_REFRESH_SECRET` | Backend | ✅ | ≥32 chars, random, **different** from the access secret. |
 | `CRON_SECRET` | Backend **and** GitHub | ✅ | Shared bearer secret for the internal cron endpoints. Must match. |

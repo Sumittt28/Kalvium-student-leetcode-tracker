@@ -59,8 +59,20 @@ import type {
   SyncJobSummary,
 } from '@dsa/shared';
 
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ?? 'http://localhost:4000/api/v1';
+const API_PREFIX = '/api/v1';
+
+/**
+ * The backend serves every route under `/api/v1`. `NEXT_PUBLIC_API_URL` is meant to include
+ * that prefix, but it is easy to set it to the bare Render host instead — which turns every
+ * call into a NestJS 404 ("Cannot POST /auth/login"). Append the prefix when it is missing.
+ */
+export function resolveApiBaseUrl(raw: string | undefined): string {
+  const trimmed = raw?.trim().replace(/\/+$/, '');
+  if (!trimmed) return `http://localhost:4000${API_PREFIX}`;
+  return trimmed.endsWith(API_PREFIX) ? trimmed : `${trimmed}${API_PREFIX}`;
+}
+
+const BASE_URL = resolveApiBaseUrl(process.env.NEXT_PUBLIC_API_URL);
 
 /** One Infosys day's problem set, as `InfosysAssignmentsService` returns it. */
 export interface InfosysAssignmentRecord {

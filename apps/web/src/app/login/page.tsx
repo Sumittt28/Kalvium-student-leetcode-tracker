@@ -2,13 +2,14 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { api, tokenStore } from '@/lib/api';
 import { Button, Card } from '@/components/ui';
 
 export default function LoginPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -16,6 +17,9 @@ export default function LoginPage() {
     mutationFn: () => api.login(email, password),
     onSuccess: (data) => {
       tokenStore.set(data.accessToken, data.refreshToken);
+      // Drop anything cached for a previous session in this tab — notably `['me']`,
+      // which would otherwise show the last user's name, role and campus scope.
+      queryClient.clear();
       // One login page for every role — where it lands depends on who signed in.
       // Students never see the admin/mentor console, and vice versa (§20).
       router.replace(data.user.role === 'STUDENT' ? '/student' : '/');

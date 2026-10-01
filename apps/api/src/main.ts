@@ -15,6 +15,20 @@ async function bootstrap(): Promise<void> {
 
   app.setGlobalPrefix(config.apiPrefix);
 
+  // A frontend built with NEXT_PUBLIC_API_URL set to the bare host (no `/api/v1`) calls
+  // `/auth/login` instead of `/api/v1/auth/login` and gets "Cannot POST /auth/login".
+  // Route such requests into the prefix rather than failing every call.
+  const prefixPath = `/${config.apiPrefix.replace(/^\/+|\/+$/g, '')}`;
+  if (prefixPath !== '/') {
+    app.use((req: { url: string }, _res: unknown, next: () => void) => {
+      const path = req.url.split('?')[0];
+      if (path !== '/' && path !== prefixPath && !path.startsWith(`${prefixPath}/`)) {
+        req.url = `${prefixPath}${req.url}`;
+      }
+      next();
+    });
+  }
+
   // Swagger UI is served from this origin and needs inline script/style to render.
   // Helmet's default CSP blocks both, so a deployment with SWAGGER_ENABLED=true would
   // otherwise ship docs that render as a blank page. Rather than turning CSP off, the

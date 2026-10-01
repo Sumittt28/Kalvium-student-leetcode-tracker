@@ -191,6 +191,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               const refresh = tokenStore.refresh;
               if (refresh) void api.logout(refresh).catch(() => undefined);
               tokenStore.clear();
+              queryClient.clear();
               router.replace('/login');
             }}
           >

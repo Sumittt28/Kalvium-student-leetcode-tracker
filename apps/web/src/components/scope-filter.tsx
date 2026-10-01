@@ -35,6 +35,7 @@
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import {
   UNASSIGNED_BATCH_LABEL,
@@ -88,7 +89,12 @@ export function ScopeFilterProvider({ children }: { children: React.ReactNode })
     if (storedCampus && storedBatch) setBatchState(storedBatch);
   }, []);
 
+  // This provider wraps the login page too. Querying there runs without a token, and the
+  // 401s it caches would leave the campus filter empty after sign-in until a reload.
+  const signedIn = !(usePathname() ?? '').startsWith('/login');
+
   const { data: campuses, isLoading: campusesLoading } = useQuery({
+    enabled: signedIn,
     // Distinct cache key from the unfiltered admin listing (`['campuses']` elsewhere) —
     // this is a genuinely different query, not the same data reused.
     queryKey: ['campuses', 'coding-hours-activity'],
@@ -102,7 +108,12 @@ export function ScopeFilterProvider({ children }: { children: React.ReactNode })
 
   // Shares `['me']` with the app shell, so this is the same cached response rather than a
   // second request. Only the role is read.
-  const { data: viewer } = useQuery({ queryKey: ['me'], queryFn: api.me, staleTime: 5 * 60_000 });
+  const { data: viewer } = useQuery({
+    queryKey: ['me'],
+    queryFn: api.me,
+    staleTime: 5 * 60_000,
+    enabled: signedIn,
+  });
 
   /**
    * A mentor holding several campuses is pinned to one of them until they choose.
