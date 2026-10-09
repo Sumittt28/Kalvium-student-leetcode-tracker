@@ -319,3 +319,64 @@ export function toProblemDifficulty(source: string): 'EASY' | 'MEDIUM' | 'HARD' 
       throw new Error(`Unknown difficulty "${source}"`);
   }
 }
+
+// ---------------------------------------------------------------------------
+// API shapes — what the browse endpoints return and the UI renders
+// ---------------------------------------------------------------------------
+
+export interface QuestionBankQuestionDto {
+  position: number;
+  leetcodeNumber: number;
+  /** The title exactly as supplied for this group (never normalised). */
+  title: string;
+  difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+  titleSlug: string;
+  url: string;
+  problemId: string;
+  topic: string | null;
+  pattern: string | null;
+  dayFocus: string | null;
+  dailyTheme: string | null;
+  role: string | null;
+  usage: string | null;
+  /** True when this question satisfied the search/filters that selected its day. */
+  matched: boolean;
+}
+
+/** One four-question curriculum day, questions always in Q1-Q4 order. */
+export interface QuestionBankSetDto {
+  group: QuestionBankGroup;
+  setKey: string;
+  belt: number | null;
+  week: number;
+  /** Group 1: curriculum day 1-6. Group 2: running Day # 1-80. */
+  day: number;
+  weekday: string | null;
+  dailyTheme: string | null;
+  dayFocus: string | null;
+  questions: QuestionBankQuestionDto[];
+}
+
+export interface QuestionBankSetsResponse {
+  group: QuestionBankGroup;
+  items: QuestionBankSetDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface QuestionBankFiltersResponse {
+  group: QuestionBankGroup;
+  /** Group 1: each belt with its own weeks — belts differ in length. */
+  belts: { belt: number; weeks: number[] }[];
+  /** Group 2: weeks 1-16 present in the data. */
+  weeks: number[];
+  weekdays: string[];
+  topics: string[];
+  patterns: string[];
+  dailyThemes: string[];
+  roles: string[];
+  difficulties: ('EASY' | 'MEDIUM' | 'HARD')[];
+  totals: { sets: number; questions: number };
+}
