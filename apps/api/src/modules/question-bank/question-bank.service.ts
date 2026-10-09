@@ -12,7 +12,7 @@
  * its four questions together.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import type {
   QuestionBankFiltersResponse,
@@ -73,6 +73,17 @@ export class QuestionBankService {
       ),
       totals: { sets: new Set(rows.map((r) => r.setKey)).size, questions: rows.length },
     };
+  }
+
+  /** One curriculum day by its stable key, e.g. `G1-B4-W2-D3` or `G2-D17`. */
+  async set(setKey: string): Promise<QuestionBankSetDto> {
+    const entries = await this.prisma.questionBankEntry.findMany({
+      where: { setKey },
+      include: ENTRY_INCLUDE,
+      orderBy: { position: 'asc' },
+    });
+    if (entries.length === 0) throw new NotFoundException(`No question-bank day "${setKey}".`);
+    return toSet(entries, new Set(), false);
   }
 
   async sets(query: QuestionBankSetsQueryDto): Promise<QuestionBankSetsResponse> {

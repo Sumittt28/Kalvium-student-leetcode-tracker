@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Settings2 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { AssignmentSummary } from '@dsa/shared';
+import { QUESTION_BANK_GROUP_LABELS, type AssignmentSummary, type QuestionBankSetDto } from '@dsa/shared';
 
 import { api } from '@/lib/api';
 import { todayKey } from '@/lib/utils';
@@ -33,12 +34,60 @@ import {
  */
 const DEFAULT_PROBLEM_SLOTS = 4;
 
+/** `useSearchParams` needs a Suspense boundary for the page to build. */
 export default function AssignmentsPage() {
+  return (
+    <Suspense fallback={null}>
+      <AssignmentsPageInner />
+    </Suspense>
+  );
+}
+
+/** "Belt 4 · Week 2 · Day 3" / "Week 5 · Mon · Day 22", for the topic and the banner. */
+function bankSetLabel(set: QuestionBankSetDto): string {
+  return set.group === 'GROUP_1'
+    ? `Belt ${set.belt} · Week ${set.week} · Day ${set.day}`
+    : `Week ${set.week} · ${set.weekday} · Day ${set.day}`;
+}
+
+function AssignmentsPageInner() {
   const queryClient = useQueryClient();
   const [dayKey, setDayKey] = useState(todayKey());
   const [topic, setTopic] = useState('');
   const [urls, setUrls] = useState<string[]>(Array(DEFAULT_PROBLEM_SLOTS).fill(''));
   const [creating, setCreating] = useState(false);
+
+  /**
+   * Hand-off from the Question Bank: `?fromBank=<setKey>` pre-fills the four problem links
+   * and the topic, nothing else. The date and — deliberately — the campus and batch are left
+   * for the mentor to choose, exactly as for a hand-typed assignment: the bank never decides
+   * who receives a set. Applied once, so editing the form afterwards is never overwritten.
+   */
+  const fromBankKey = useSearchParams().get('fromBank');
+  const bankSet = useQuery({
+    queryKey: ['question-bank-set', fromBankKey],
+    queryFn: () => api.questionBankSet(fromBankKey!),
+    enabled: Boolean(fromBankKey),
+    retry: false,
+  });
+  const [bankLabel, setBankLabel] = useState<string | null>(null);
+  const bankApplied = useRef(false);
+  useEffect(() => {
+    if (!bankSet.data || bankApplied.current) return;
+    bankApplied.current = true;
+    const set = bankSet.data;
+    setUrls(set.questions.map((question) => question.url));
+    setTopic(`${QUESTION_BANK_GROUP_LABELS[set.group].split(' — ')[0]} · ${bankSetLabel(set)}`);
+    setBankLabel(`${QUESTION_BANK_GROUP_LABELS[set.group]} · ${bankSetLabel(set)}`);
+    setCreating(true);
+  }, [bankSet.data]);
+  useEffect(() => {
+    if (bankSet.error) {
+      toast.error('Could not load that Question Bank day', {
+        description: (bankSet.error as Error).message,
+      });
+    }
+  }, [bankSet.error]);
 
   const { campus: campusFilter, batch: batchFilter, campuses } = useScopeFilter();
 
@@ -192,6 +241,12 @@ export default function AssignmentsPage() {
             description="Paste LeetCode problem URLs. Slugs also work."
           />
           <div className="space-y-4 p-5">
+            {bankLabel ? (
+              <div className="rounded-lg border border-[var(--color-brand)] bg-[var(--color-brand-soft)] px-3 py-2 text-xs">
+                <strong>Pre-filled from the Question Bank:</strong> {bankLabel}. Pick the date and choose the
+                campus and batch below — they are not set for you.
+              </div>
+            ) : null}
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <label htmlFor="date" className="mb-1.5 block text-xs font-medium">

@@ -111,6 +111,17 @@ describe('sets()', () => {
   });
 });
 
+describe('set()', () => {
+  it('returns one day by key with its questions in order', async () => {
+    const set = await service.set(`${RUN}-G1-D2`);
+    expect(set).toMatchObject({ group: 'GROUP_1', belt: 99, day: 2 });
+    expect(set.questions.map((x) => x.position)).toEqual([1, 2, 3, 4]);
+  });
+  it('404s on an unknown key rather than returning an empty day', async () => {
+    await expect(service.set('G1-B0-W0-D0')).rejects.toThrow(/No question-bank day/);
+  });
+});
+
 describe('filters()', () => {
   it('reports each belt with its own weeks, and Group 2 weekdays/roles', async () => {
     const g1 = await service.filters('GROUP_1');

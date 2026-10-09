@@ -16,6 +16,7 @@ import { Command } from 'cmdk';
 import { toast } from 'sonner';
 import {
   BarChart3,
+  BookOpen,
   Building2,
   CalendarDays,
   ClipboardCheck,
@@ -43,6 +44,10 @@ const NAV = [
   { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { href: '/students', label: 'Students', icon: Users },
   { href: '/assignments', label: 'Assignments', icon: CalendarDays },
+  // The curated Group 1 / Group 2 curriculum, browsable by day. Reference data only: it
+  // reads nothing about students and writes nothing — assignments are still made on the
+  // Assignments page.
+  { href: '/question-bank', label: 'Question Bank', icon: BookOpen },
   // Its own top-level section, deliberately not nested under Assignments: a baseline
   // test measures independent capability and shares no scoring, streak or leaderboard
   // with daily practice (§18, §25).

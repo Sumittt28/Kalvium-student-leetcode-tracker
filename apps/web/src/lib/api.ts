@@ -11,6 +11,10 @@
 
 import type {
   AnalyticsOverview,
+  QuestionBankFiltersResponse,
+  QuestionBankGroup,
+  QuestionBankSetDto,
+  QuestionBankSetsResponse,
   CampusAnalysisPeriod,
   CampusAnalysisSummary,
   CampusCategory,
@@ -531,6 +535,15 @@ export const api = {
   //
   // A separate program, one flat cohort — no campus parameter on any of these. See
   // packages/shared/src/domain/infosys-analysis.ts's header comment for why.
+
+  questionBankFilters: (group: QuestionBankGroup) =>
+    apiFetch<QuestionBankFiltersResponse>(`/question-bank/filters${qs({ group })}`),
+
+  questionBankSets: (params: Record<string, string | number | undefined>) =>
+    apiFetch<QuestionBankSetsResponse>(`/question-bank/sets${qs(params)}`),
+
+  questionBankSet: (setKey: string) =>
+    apiFetch<QuestionBankSetDto>(`/question-bank/sets/${encodeURIComponent(setKey)}`),
 
   infosysDashboard: () => apiFetch<InfosysDashboardSummary>('/infosys/dashboard'),
 

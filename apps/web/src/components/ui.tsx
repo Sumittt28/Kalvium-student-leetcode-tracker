@@ -162,10 +162,10 @@ export function StatTile({
 
 // --- Table ------------------------------------------------------------------
 
-export function TableShell({ children }: { children: ReactNode }) {
+export function TableShell({ children, fixed = false }: { children: ReactNode; fixed?: boolean }) {
   return (
     <div className="table-scroll">
-      <table className="w-full border-collapse text-sm">{children}</table>
+      <table className={cn('w-full border-collapse text-sm', fixed && 'table-fixed')}>{children}</table>
     </div>
   );
 }

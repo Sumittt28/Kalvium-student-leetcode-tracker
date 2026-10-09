@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Roles } from '../../common/decorators';
@@ -20,6 +20,12 @@ export class QuestionBankController {
   @ApiOperation({ summary: 'Filter options for one group (belts with their own weeks, topics, themes…)' })
   filters(@Query() query: QuestionBankFiltersQueryDto) {
     return this.bank.filters(query.group);
+  }
+
+  @Get('sets/:setKey')
+  @ApiOperation({ summary: 'One four-question curriculum day by its key (e.g. G1-B4-W2-D3, G2-D17)' })
+  set(@Param('setKey') setKey: string) {
+    return this.bank.set(setKey);
   }
 
   @Get('sets')
