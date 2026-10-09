@@ -771,6 +771,7 @@ model Problem {
   baselineResults           BaselineTestProblemResult[]
   infosysAssignmentProblems InfosysAssignmentProblem[]
   infosysProblemStatuses    InfosysDailyProblemStatus[]
+  questionBankEntries       QuestionBankEntry[]
 
   @@index([difficulty])
   @@map("problems")
@@ -899,6 +900,69 @@ model AssignmentProblem {
   @@unique([assignmentId, problemId])
   @@index([problemId])
   @@map("assignment_problems")
+}
+
+// ---------------------------------------------------------------------------
+// Coding Hours Question Bank
+// ---------------------------------------------------------------------------
+
+/// The two curated curricula. Deliberately an enum, not a free string: a third group is a
+/// product decision that needs UI and targeting work, not a data-entry change.
+enum QuestionBankGroup {
+  GROUP_1
+  GROUP_2
+}
+
+/// One *curriculum occurrence*: this problem, in this group, at this belt/week/day, in this
+/// slot. It is not the problem itself — that is `Problem`, which is shared. 261 problems sit
+/// in both groups; each occurrence is kept, and they point at one `Problem` row.
+///
+/// Read-only reference data. Nothing here records that any student attempted or solved
+/// anything, and nothing here is consulted by scoring, streaks or sync: a student's
+/// progress still comes only from `Assignment` + the submission mirror.
+///
+/// Group 1 is identified by (belt, week, day) with day 1-6 as supplied; Group 2 by the
+/// running day number 1-80, stored in `day` with `week` 1-16 and `belt` null. `setKey`
+/// (e.g. `G1-B4-W2-D3`, `G2-D17`) names one four-question day and makes the import
+/// idempotent: the pair (setKey, position) is the natural key.
+model QuestionBankEntry {
+  id        String            @id @default(uuid()) @db.Uuid
+  group     QuestionBankGroup
+  setKey    String
+  position  Int
+  belt      Int?
+  week      Int
+  day       Int
+  /// Group 2 only: Mon-Fri as supplied.
+  weekday   String?
+  problemId String            @db.Uuid
+
+  /// As supplied, kept beside the shared `Problem` because the two files spell some titles
+  /// differently ("Coin Change 2" / "Coin Change II") and neither is rewritten.
+  leetcodeNumber   Int
+  sourceTitle      String
+  sourceDifficulty Difficulty
+  topic            String?
+  pattern          String?
+  dayFocus         String?
+  /// Group 2 only.
+  dailyTheme       String?
+  /// Group 2 only: Warm-up, Core or Stretch.
+  role             String?
+  /// Group 1 only: the source's own "Belt 4 Week 2 Day 3 Q1" reference.
+  usage            String?
+  /// 1-based spreadsheet row, so any entry traces back to the file it came from.
+  sourceRow        Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Restrict)
+
+  @@unique([setKey, position])
+  @@index([group, belt, week, day])
+  @@index([problemId])
+  @@map("question_bank_entries")
 }
 
 // ---------------------------------------------------------------------------
