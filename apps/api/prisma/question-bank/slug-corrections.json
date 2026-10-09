@@ -1,0 +1,16 @@
+[
+  {
+    "leetcodeNumber": 540,
+    "group": "GROUP_2",
+    "from": "dsingle-element-in-a-sorted-array",
+    "to": "single-element-in-a-sorted-array",
+    "evidence": "Group 2 source row 79 links to a slug with a stray leading 'd'. leetcode.com/graphql returns question=null for the supplied slug and 540 'Single Element in a Sorted Array' for the corrected one; Group 1 uses the corrected slug for the same number."
+  },
+  {
+    "leetcodeNumber": 518,
+    "group": "GROUP_2",
+    "from": "coin-change-2",
+    "to": "coin-change-ii",
+    "evidence": "leetcode.com/graphql returns question=null for 'coin-change-2' and 518 'Coin Change II' for 'coin-change-ii'; Group 1 uses 'coin-change-ii' for the same number. Group 2 source row 291. The supplied Group 2 display title ('Coin Change 2') is kept unchanged."
+  }
+]

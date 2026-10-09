@@ -24,6 +24,7 @@ export * from './domain/streak';
 export * from './domain/ranking';
 export * from './domain/gamification';
 export * from './domain/daily-email-report';
+export * from './domain/question-bank';
 export * from './types/enums';
 export * from './types/contracts';
 export * from './constants';
