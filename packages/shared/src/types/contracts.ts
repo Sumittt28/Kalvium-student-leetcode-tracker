@@ -529,6 +529,12 @@ export interface MentorBucketRow {
   attemptedNotSolvedCount: number;
   notAttemptedCount: number;
   completionTime: string | null;
+  /**
+   * Minutes since the assignment opened (see `completionMinuteFor`) — what "who finished
+   * first" must sort on. `completionTime` is the wall clock and does not order correctly
+   * across a window that spans midnight.
+   */
+  completionMinute?: number | null;
   currentStreak: number;
   score: number;
   rank: number | null;

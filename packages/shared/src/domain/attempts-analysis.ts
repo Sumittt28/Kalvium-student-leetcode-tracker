@@ -30,7 +30,8 @@
  *    would contradict that screen.
  */
 
-import type { DayKey } from './time';
+import { addDays, DEFAULT_PROGRAM_TIMEZONE, type DayKey } from './time';
+import { submissionWindowBounds, usesSubmissionWindow } from './submission-window';
 
 /** Outcome of one student on one assigned problem, within the assignment period. */
 export type AttemptOutcome =
@@ -74,10 +75,18 @@ export const DEFAULT_ATTEMPT_VIEW: AttemptView = 'ATTEMPTED_NOT_SOLVED';
 /** The "Minimum Attempts" choices. */
 export const MIN_ATTEMPT_OPTIONS = [1, 2, 3, 5, 10] as const;
 
-/** Inclusive program-day bounds; `endDayKey: null` means "still open". */
+/**
+ * Inclusive program-day bounds; `endDayKey: null` means "still open".
+ *
+ * From the submission-window cut-over date a window also carries exact instants
+ * (`startAt`/`endAt`, inclusive): 16:00 on the assignment date to 15:59:59.999 the next
+ * day. When they are present they decide membership and the day keys are descriptive.
+ */
 export interface AttemptWindow {
   startDayKey: DayKey;
   endDayKey: DayKey | null;
+  startAt?: Date;
+  endAt?: Date;
 }
 
 function previousDay(dayKey: DayKey): DayKey {
@@ -90,10 +99,19 @@ function previousDay(dayKey: DayKey): DayKey {
  * The assignment periods for every day one student was assigned one problem.
  * Each runs from its own day to the day before the next assignment of that problem.
  */
-export function attemptWindows(assignmentDayKeys: DayKey[]): Map<DayKey, AttemptWindow> {
+export function attemptWindows(
+  assignmentDayKeys: DayKey[],
+  timeZone: string = DEFAULT_PROGRAM_TIMEZONE,
+): Map<DayKey, AttemptWindow> {
   const days = [...new Set(assignmentDayKeys)].sort();
   const windows = new Map<DayKey, AttemptWindow>();
   days.forEach((day, i) => {
+    if (usesSubmissionWindow(day)) {
+      // A fixed 24-hour window, independent of when the problem is next assigned.
+      const { start, end } = submissionWindowBounds(day, timeZone);
+      windows.set(day, { startDayKey: day, endDayKey: addDays(day, 1), startAt: start, endAt: end });
+      return;
+    }
     const next = days[i + 1];
     windows.set(day, { startDayKey: day, endDayKey: next ? previousDay(next) : null });
   });
@@ -152,11 +170,21 @@ export function summariseAttempts(
   const counted: AttemptSubmission[] = [];
   let acceptedBefore = false;
   for (const s of submissions) {
-    if (s.dayKey < window.startDayKey) {
-      if (s.status === 'ACCEPTED') acceptedBefore = true;
-      continue;
+    if (window.startAt && window.endAt) {
+      // Exact-instant window: before it only matters as "solved before the assignment";
+      // after it, nothing counts.
+      if (s.submittedAt.getTime() < window.startAt.getTime()) {
+        if (s.status === 'ACCEPTED') acceptedBefore = true;
+        continue;
+      }
+      if (s.submittedAt.getTime() > window.endAt.getTime()) continue;
+    } else {
+      if (s.dayKey < window.startDayKey) {
+        if (s.status === 'ACCEPTED') acceptedBefore = true;
+        continue;
+      }
+      if (window.endDayKey !== null && s.dayKey > window.endDayKey) continue;
     }
-    if (window.endDayKey !== null && s.dayKey > window.endDayKey) continue;
     if (seen.has(s.providerSubmissionId)) continue;
     seen.add(s.providerSubmissionId);
     counted.push(s);

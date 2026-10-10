@@ -38,7 +38,8 @@
  * `./time`, never UTC calendar days — see `assignmentWindow`.
  */
 
-import { addDays, type DayKey } from './time';
+import { addDays, DEFAULT_PROGRAM_TIMEZONE, type DayKey } from './time';
+import { submissionWindowBounds, usesSubmissionWindow } from './submission-window';
 
 /**
  * How many days *before* the assignment day still count towards it.
@@ -71,6 +72,13 @@ export const ASSIGNMENT_LOOKBACK_DAYS = 2;
  * History:
  *  * `1` — original: `solvedCount` measured over the lookback window only.
  *  * `2` — ever-solved `solvedCount`, windowed figures separated into `inWindow*`.
+ *
+ * The 16:00 -> 15:59 submission window (`submission-window.ts`) is **not** a version bump,
+ * on purpose. It applies by *assignment date* — from `SUBMISSION_WINDOW_EFFECTIVE_DAY` on —
+ * and can change nothing already stored: no row for an earlier day is affected, and no row
+ * for a later day exists yet. Bumping would flag every stored day stale and re-derive tens
+ * of thousands of rows to the same values. If that date is ever moved *earlier*, rows
+ * between the old and new date do change, and that is the moment to bump.
  */
 export const COMPLETION_RULES_VERSION = 2;
 
@@ -201,6 +209,11 @@ export function assignmentDaysAffectedBy(
 ): DayKey[] {
   const span = Math.abs(lookbackDays);
   const days: DayKey[] = [];
+  // Under the submission window a submission made before 16:00 counts for the assignment
+  // dated the *previous* day, so that day's stored result is now stale too. Only from the
+  // cut-over date: before it, a submission can never reach an earlier assignment.
+  const previous = addDays(submissionDayKey, -1);
+  if (usesSubmissionWindow(previous)) days.push(previous);
   for (let offset = 0; offset <= span; offset += 1) {
     days.push(addDays(submissionDayKey, offset));
   }
@@ -238,8 +251,25 @@ export function calculateAssignmentCompletion(
   assignedProblems: AssignedProblemRef[],
   submissions: CompletionSubmission[],
   lookbackDays: number = ASSIGNMENT_LOOKBACK_DAYS,
+  timeZone: string = DEFAULT_PROGRAM_TIMEZONE,
 ): AssignmentCompletionResult {
-  const { startDayKey, endDayKey } = assignmentWindow(dayKey, lookbackDays);
+  // From the cut-over date, only submissions made inside [D 16:00, D+1 15:59:59] exist as
+  // far as this assignment is concerned: everything else is dropped *before* matching, so
+  // the ever-solved and in-window figures coincide, `attempts` counts only window
+  // submissions, and a problem solved last week earns nothing. Earlier days keep the older
+  // rule exactly as it was.
+  const windowed = usesSubmissionWindow(dayKey);
+  const bounds = windowed ? submissionWindowBounds(dayKey, timeZone) : null;
+  const counted = bounds
+    ? submissions.filter(
+        (s) =>
+          s.submittedAt.getTime() >= bounds.start.getTime() &&
+          s.submittedAt.getTime() <= bounds.end.getTime(),
+      )
+    : submissions;
+  const { startDayKey, endDayKey } = windowed
+    ? { startDayKey: dayKey, endDayKey: addDays(dayKey, 1) }
+    : assignmentWindow(dayKey, lookbackDays);
 
   const problems: ProblemCompletion[] = assignedProblems
     .slice()
@@ -260,7 +290,7 @@ export function calculateAssignmentCompletion(
 
   // Oldest first, so "earliest accepted submission wins" falls out of the iteration
   // order instead of needing a comparison at every step.
-  const ordered = submissions
+  const ordered = counted
     .slice()
     .sort((a, b) => a.submittedAt.getTime() - b.submittedAt.getTime());
 
@@ -275,7 +305,8 @@ export function calculateAssignmentCompletion(
     );
     if (!slot) continue;
 
-    const inWindow = submission.dayKey >= startDayKey && submission.dayKey <= endDayKey;
+    // Windowed days already filtered above, so everything left is inside the window.
+    const inWindow = windowed || (submission.dayKey >= startDayKey && submission.dayKey <= endDayKey);
 
     slot.attempts += 1;
     if (inWindow) slot.attemptsInWindow += 1;

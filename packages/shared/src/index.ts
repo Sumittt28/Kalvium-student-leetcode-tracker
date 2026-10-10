@@ -20,6 +20,7 @@ export * from './domain/roster-normalisation';
 export * from './domain/baseline';
 export * from './domain/scoring';
 export * from './domain/assignment-completion';
+export * from './domain/submission-window';
 export * from './domain/streak';
 export * from './domain/ranking';
 export * from './domain/gamification';
