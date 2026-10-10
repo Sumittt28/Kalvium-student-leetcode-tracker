@@ -29,6 +29,12 @@
  *  - that the split does not leak one campus's assignment onto another's students.
  *
  * Fixtures live under a unique prefix and are removed in `afterAll`.
+ *
+ * Dates are in 2025 — before the programme existed (so no real data collides) and, just as
+ * importantly, before the Coding Hours submission-window cut-over (`SUBMISSION_WINDOW_EFFECTIVE_DAY`).
+ * These suites pin the rule that applies to assignments *before* that date: a solve at any
+ * time counts, within a lookback for practice. The newer 16:00 -> 15:59 rule has its own suite
+ * (`submission-window.e2e-spec.ts`); mixing the two here would test neither.
  */
 
 import { PrismaClient } from '@prisma/client';
@@ -53,10 +59,10 @@ const IST = '+05:30';
  * The incident's shape, in a year the programme will never hold data for: the assignment
  * day, and the day the split was performed — the day *after*.
  */
-const DAY = '2099-08-31';
-const SPLIT_DAY = '2099-09-01';
+const DAY = '2025-08-31';
+const SPLIT_DAY = '2025-09-01';
 /** Enrolment, several days before the assignment — the day a first placement back-dates to. */
-const ENROLLED = '2099-08-26';
+const ENROLLED = '2025-08-26';
 
 const ist = (day: string, hhmm: string): Date => new Date(`${day}T${hhmm}:00${IST}`);
 

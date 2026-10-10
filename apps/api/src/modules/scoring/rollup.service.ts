@@ -16,6 +16,7 @@ import {
   ASSIGNMENT_LOOKBACK_DAYS,
   assignmentWindow,
   calculateAssignmentCompletion,
+  completionMinuteFor,
   COMPLETION_RULES_VERSION,
   computeDailyScore,
   computeStreaks,
@@ -272,8 +273,12 @@ export class RollupService {
       // than let them zero out a streak the student never had a chance to earn.
       const streaks = computeStreaks(days, dayKey, config, { enrolledFromDayKey });
 
+      // Minutes since the assignment *opened*: the plain minute of the day for assignments
+      // before the submission-window cut-over, minutes since 16:00 from then on. Stored this
+      // way so the leaderboard tiebreak, the early-finish bonus tiers and the Early Bird
+      // badge all keep meaning "earlier is better" across a window that spans midnight.
       const completionMinute = result?.completedAt
-        ? this.time.minuteOfDay(result.completedAt)
+        ? completionMinuteFor(dayKey, result.completedAt, this.time.timezone)
         : null;
 
       // Scored on the window too, and for the same reason: the daily score is a measure
@@ -991,6 +996,7 @@ export class RollupService {
         assigned,
         rows,
         ASSIGNMENT_LOOKBACK_DAYS,
+        this.time.timezone,
       );
 
       results.set(studentId, {

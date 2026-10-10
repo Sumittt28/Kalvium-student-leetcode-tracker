@@ -21,6 +21,12 @@
  * `inWindowSolvedCount` are checked separately on every row.
  *
  * Fixtures live under a unique prefix and are removed in `afterAll`.
+ *
+ * Dates are in 2025 — before the programme existed (so no real data collides) and, just as
+ * importantly, before the Coding Hours submission-window cut-over (`SUBMISSION_WINDOW_EFFECTIVE_DAY`).
+ * These suites pin the rule that applies to assignments *before* that date: a solve at any
+ * time counts, within a lookback for practice. The newer 16:00 -> 15:59 rule has its own suite
+ * (`submission-window.e2e-spec.ts`); mixing the two here would test neither.
  */
 
 import { PrismaClient } from '@prisma/client';
@@ -42,14 +48,14 @@ const CODE = `LA${Date.now().toString(36).toUpperCase()}`;
 const IST = '+05:30';
 
 /** The scenario's dates, in a year the programme will never hold data for. */
-const ASSIGNMENT_DAYS = ['2099-09-07', '2099-09-08', '2099-09-09', '2099-09-10'] as const;
+const ASSIGNMENT_DAYS = ['2025-09-07', '2025-09-08', '2025-09-09', '2025-09-10'] as const;
 /** The day every one of those rows was actually inserted. */
-const ENTERED_ON = '2099-09-11';
+const ENTERED_ON = '2025-09-11';
 /** Before the assignment date, before the lookback, before the row existed. */
-const SOLVED_LONG_BEFORE = '2099-09-05';
+const SOLVED_LONG_BEFORE = '2025-09-05';
 /** Long before everything — the "at ANY TIME" end of the rule. */
-const SOLVED_MONTHS_BEFORE = '2099-06-14';
-const ENROLLED = '2099-06-01';
+const SOLVED_MONTHS_BEFORE = '2025-06-14';
+const ENROLLED = '2025-06-01';
 
 const ist = (day: string, hhmm: string): Date => new Date(`${day}T${hhmm}:00${IST}`);
 
@@ -364,7 +370,7 @@ describe('creating the assignment reconciles its date there and then', () => {
     // the past, entered today, against a student who solved it before it existed. Until
     // this call was added the day stayed stale until a sync noticed — up to three hours
     // after the admin finished typing.
-    const day = '2099-09-03';
+    const day = '2025-09-03';
     const slug = `${RUN}-created-late`.toLowerCase();
 
     const problem = await prisma.problem.create({
@@ -378,7 +384,7 @@ describe('creating the assignment reconciles its date there and then', () => {
     problemIds.push(problem.id);
 
     // Solved three weeks before the assignment date — outside any window.
-    await submit(studentIds.early!, slug, '2099-08-12', '11:00');
+    await submit(studentIds.early!, slug, '2025-08-12', '11:00');
 
     const assignment = await prisma.assignment.create({
       data: {
@@ -398,14 +404,14 @@ describe('creating the assignment reconciles its date there and then', () => {
     // makes them *future* dates against the real clock. Pin "today" just past the
     // assignment so the historical branch — the one under test — is the one that runs.
     vi.useFakeTimers();
-    vi.setSystemTime(ist('2099-09-11', '09:00'));
+    vi.setSystemTime(ist('2025-09-11', '09:00'));
 
     const result = await rollup.reconcileAssignmentDay(day);
     expect(result).not.toBeNull();
     // It reconciles the day *and* the days after it, because a corrected day changes
     // what every later day's streak reads.
     expect(result!.days[0]).toBe(day);
-    expect(result!.days).toContain('2099-09-11');
+    expect(result!.days).toContain('2025-09-11');
     expect(result!.days.length).toBeGreaterThan(1);
 
     const row = await stored('early', day);
@@ -419,8 +425,8 @@ describe('creating the assignment reconciles its date there and then', () => {
     // and leave the range half-rewritten. The caller is told, and pointed at the
     // background operation instead.
     vi.useFakeTimers();
-    vi.setSystemTime(ist('2099-09-11', '09:00'));
-    expect(await rollup.reconcileAssignmentDay('2099-09-03', { maxSyncDays: 2 })).toBeNull();
+    vi.setSystemTime(ist('2025-09-11', '09:00'));
+    expect(await rollup.reconcileAssignmentDay('2025-09-03', { maxSyncDays: 2 })).toBeNull();
   });
 });
 

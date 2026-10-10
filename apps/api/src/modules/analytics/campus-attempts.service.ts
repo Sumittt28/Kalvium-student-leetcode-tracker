@@ -191,7 +191,7 @@ export class CampusAttemptsService {
       const key = `${a.studentId}|${a.titleSlug}`;
       let windows = windowsByPair.get(key);
       if (!windows) {
-        windows = attemptWindows(daysByPair.get(key)!);
+        windows = attemptWindows(daysByPair.get(key)!, this.time.timezone);
         windowsByPair.set(key, windows);
       }
       const window = windows.get(a.dayKey as DayKey)!;

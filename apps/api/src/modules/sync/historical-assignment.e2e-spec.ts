@@ -19,6 +19,12 @@
  *
  * Fixtures live under a unique prefix and are removed in `afterAll`, so this is safe to
  * run against a development database.
+ *
+ * Dates are in 2025 — before the programme existed (so no real data collides) and, just as
+ * importantly, before the Coding Hours submission-window cut-over (`SUBMISSION_WINDOW_EFFECTIVE_DAY`).
+ * These suites pin the rule that applies to assignments *before* that date: a solve at any
+ * time counts, within a lookback for practice. The newer 16:00 -> 15:59 rule has its own suite
+ * (`submission-window.e2e-spec.ts`); mixing the two here would test neither.
  */
 
 import { PrismaClient } from '@prisma/client';
@@ -46,9 +52,9 @@ const RUN = `e2e-hist-${Date.now()}`;
  * that matters. The exact production dates are asserted in
  * `assignment-completion.spec.ts`, which needs no database and can hard-code them safely.
  */
-const DAY = '2099-08-20';
+const DAY = '2025-08-20';
 /** The day the assignment row was actually inserted — two days after its own date. */
-const ENTERED_ON = '2099-08-22';
+const ENTERED_ON = '2025-08-22';
 const IST = '+05:30';
 
 const ist = (day: string, hhmm: string): Date => new Date(`${day}T${hhmm}:00${IST}`);
@@ -90,12 +96,12 @@ async function makeStudent(
       campusId,
       batchId,
       status: 'ACTIVE',
-      createdAt: ist('2099-06-01', '09:00'),
+      createdAt: ist('2025-06-01', '09:00'),
       campusHistory: {
-        create: { toCampusId: campusId, effectiveFromDayKey: '2099-06-01', source: 'MIGRATION' },
+        create: { toCampusId: campusId, effectiveFromDayKey: '2025-06-01', source: 'MIGRATION' },
       },
       batchHistory: {
-        create: { toBatchId: batchId, effectiveFromDayKey: '2099-06-01', source: 'MIGRATION' },
+        create: { toBatchId: batchId, effectiveFromDayKey: '2025-06-01', source: 'MIGRATION' },
       },
     },
   });
@@ -248,17 +254,17 @@ describe('E–K: submission timing against a late-added assignment', () => {
   it('G: counts a solve inside the two-day lookback', async () => {
     const audience = audiences.velsFoundation!;
     const student = await makeStudent('g-lookback', audience.campusId, audience.batchId);
-    await submit(student, audience.slugs[0]!, '2099-08-18', '09:00');
+    await submit(student, audience.slugs[0]!, '2025-08-18', '09:00');
 
     const result = await evaluate(student, audience);
     expect(result.solvedCount).toBe(1);
-    expect(result.problems[0]!.solvedOnDayKey).toBe('2099-08-18');
+    expect(result.problems[0]!.solvedOnDayKey).toBe('2025-08-18');
   });
 
   it('H: counts a solve outside the lookback, and keeps it out of the window figure', async () => {
     const audience = audiences.velsFoundation!;
     const student = await makeStudent('h-outside', audience.campusId, audience.batchId);
-    await submit(student, audience.slugs[0]!, '2099-08-17', '12:00');
+    await submit(student, audience.slugs[0]!, '2025-08-17', '12:00');
 
     const result = await evaluate(student, audience);
     // The programme's rule: the assignment date decides which day a question belongs to,
@@ -279,7 +285,7 @@ describe('E–K: submission timing against a late-added assignment', () => {
     // Stored as 18:00 UTC — same calendar date in UTC, but the assertion that matters is
     // the program-day bucket, which is what every query filters on.
     const row = await prisma.submission.findFirstOrThrow({ where: { studentId: student } });
-    expect(row.submittedAt.toISOString()).toBe('2099-08-20T18:00:00.000Z');
+    expect(row.submittedAt.toISOString()).toBe('2025-08-20T18:00:00.000Z');
     expect(row.dayKey).toBe(DAY);
 
     expect((await evaluate(student, audience)).solvedCount).toBe(1);
@@ -346,7 +352,7 @@ describe('A–D, N, O: the audience matrix on one historical date', () => {
       const audience = audiences[key]!;
       const student = await makeStudent(`matrix-${key}`, audience.campusId, audience.batchId);
       await submit(student, audience.slugs[0]!, DAY, '10:00');
-      await submit(student, audience.slugs[1]!, '2099-08-19', '18:00');
+      await submit(student, audience.slugs[1]!, '2025-08-19', '18:00');
 
       const result = await evaluate(student, audience);
       expect(result.solvedCount).toBe(2);
@@ -391,7 +397,7 @@ describe('the day-selection rule that actually caused the bug', () => {
     const rows = await prisma.$queryRaw<{ dayKey: string }[]>`
       SELECT DISTINCT a."dayKey"
       FROM "assignments" a
-      WHERE a."dayKey" >= ${'2099-08-10'}
+      WHERE a."dayKey" >= ${'2025-08-10'}
         AND a."dayKey" <= ${ENTERED_ON}
         AND a."updatedAt" > COALESCE(
           (SELECT MAX(d."computedAt") FROM "daily_statuses" d WHERE d."dayKey" = a."dayKey"),
@@ -404,6 +410,6 @@ describe('the day-selection rule that actually caused the bug', () => {
   it('reaches the assignment day from a submission made two days earlier', async () => {
     // A student who solved on the 18th is why recomputing only the submission's own day
     // is not enough: the assignment they satisfied is dated the 20th.
-    expect(assignmentDaysAffectedBy('2099-08-18')).toContain(DAY);
+    expect(assignmentDaysAffectedBy('2025-08-18')).toContain(DAY);
   });
 });

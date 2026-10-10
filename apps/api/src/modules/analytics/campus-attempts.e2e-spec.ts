@@ -9,6 +9,12 @@
  * (and a date filter never shortens a period); the drill-down and all three Excel
  * exports are the same rows as the page; excluded campuses, archived students and
  * Infosys work never appear; and reading any of it changes no stored figure.
+ *
+ * Dates are in 2025 — before the programme existed (so no real data collides) and, just as
+ * importantly, before the Coding Hours submission-window cut-over (`SUBMISSION_WINDOW_EFFECTIVE_DAY`).
+ * These suites pin the rule that applies to assignments *before* that date: a solve at any
+ * time counts, within a lookback for practice. The newer 16:00 -> 15:59 rule has its own suite
+ * (`submission-window.e2e-spec.ts`); mixing the two here would test neither.
  */
 
 import { PrismaClient } from '@prisma/client';
@@ -37,10 +43,10 @@ const service = new CampusAttemptsService(prisma as never, time, campusAnalysis)
 const admin: RequestUser = { id: '', email: 'a@x.invalid', name: 'Admin', role: 'ADMIN', studentId: null } as RequestUser;
 
 // Friday, Saturday, Sunday: one Monday-based analysis week.
-const D1 = '2097-05-10';
-const D2 = '2097-05-11';
-const D3 = '2097-05-12';
-const BEFORE = '2097-05-09';
+const D1 = '2025-05-10';
+const D2 = '2025-05-11';
+const D3 = '2025-05-12';
+const BEFORE = '2025-05-09';
 
 type Ever = 'ACCEPTED' | 'ATTEMPTED_NOT_ACCEPTED' | 'NOT_ATTEMPTED';
 
@@ -149,7 +155,7 @@ beforeAll(async () => {
         leetcodeUsername: options.handle === false ? null : `${RUN}-${key}`,
         campusId, batchId, squadId,
         status: options.status ?? 'ACTIVE',
-        createdAt: new Date('2097-01-01T00:00:00Z'),
+        createdAt: new Date('2025-01-01T00:00:00Z'),
         syncState: { create: { status: options.handle === false ? 'PROFILE_MISSING' : 'OK' } },
       },
     });
@@ -439,7 +445,7 @@ describe('drill-down and export', () => {
     });
     const p2 = page.rows.findIndex((r) => r.studentId === ids.one && r.titleSlug === slug('p2'));
     expect([7, 10, 11, 12, 13].map((c) => sheet.getRow(p2 + 2).getCell(c).value)).toEqual([
-      '10 May 2097', '10 May 2097 09:10', '10 May 2097 15:30', '10 May 2097 16:10', 'Solved After Attempts',
+      '10 May 2025', '10 May 2025 09:10', '10 May 2025 15:30', '10 May 2025 16:10', 'Solved After Attempts',
     ]);
   });
 

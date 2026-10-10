@@ -25,6 +25,9 @@
 import { Injectable } from '@nestjs/common';
 import {
   CACHE_TTL,
+  clockMinuteForCompletion,
+  endOfMonth,
+  endOfWeek,
   levelForXp,
   rankEntries,
   topBadges,
@@ -62,6 +65,10 @@ export class LeaderboardService {
   ): Promise<LeaderboardRow[]> {
     const day = dayKey ?? this.time.today();
     const periodKey = this.periodKey(period, day);
+    // The day a period's completion time belongs to: its last day, which is what the
+    // rollup stores the tiebreaker from.
+    const periodEnd =
+      period === 'DAILY' ? day : period === 'WEEKLY' ? endOfWeek(day) : endOfMonth(day);
     const cacheKey = `leaderboard:${period}:${periodKey}:${options.squadId ?? 'all'}:${
       options.campusId ?? 'all'
     }:${options.batchId ?? 'all'}:${options.onlyUnassigned ? 'unassigned' : 'any'}:${
@@ -162,7 +169,13 @@ export class LeaderboardService {
           solvedCount: entry.solvedCount,
           currentStreak: entry.currentStreak,
           score: entry.score,
-          completionTime: this.minuteToClock(entry.completionMinute),
+          // Stored as minutes since the assignment opened; shown as the wall clock the
+          // student actually finished at. Ranking above uses the stored value on purpose.
+          completionTime: this.minuteToClock(
+            entry.completionMinute === null
+              ? null
+              : clockMinuteForCompletion(periodEnd, entry.completionMinute),
+          ),
           consistency: entry.consistency,
           badges: topBadges({
             currentStreak: student.currentStreak,

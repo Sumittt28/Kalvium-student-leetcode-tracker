@@ -12,7 +12,7 @@
  */
 
 import { Injectable } from '@nestjs/common';
-import type { AttemptRow } from '@dsa/shared';
+import { SUBMISSION_WINDOW_EFFECTIVE_DAY, type AttemptRow } from '@dsa/shared';
 
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import type { RequestUser } from '../../common/decorators';
@@ -69,7 +69,15 @@ export class AttemptsCheckService {
         FROM win w
         JOIN "submissions" s
           ON s."studentId" = w."studentId" AND lower(s."titleSlug") = w.slug
-         AND s."dayKey" >= w.d AND (w.next_d IS NULL OR s."dayKey" < w.next_d)
+         AND CASE
+               -- From the submission-window cut-over: exactly 16:00 IST on the assignment
+               -- day to 15:59:59.999 IST the next day. submittedAt is a UTC timestamp.
+               WHEN w.d >= ${SUBMISSION_WINDOW_EFFECTIVE_DAY} THEN
+                 s."submittedAt" >= (((w.d::date + time '16:00') AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'UTC')
+                 AND s."submittedAt" <  (((w.d::date + 1 + time '16:00') AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'UTC')
+               -- Earlier days: from the assignment day until the same problem is next assigned.
+               ELSE s."dayKey" >= w.d AND (w.next_d IS NULL OR s."dayKey" < w.next_d)
+             END
       ), agg AS (
         SELECT "studentId", d, slug, max(first_ac) AS first_ac,
                count(*) FILTER (WHERE first_ac IS NULL OR "submittedAt" < first_ac) AS failed

@@ -15,6 +15,12 @@
  * design rests on: healing is idempotent, so the fifth run changes nothing.
  *
  * Fixtures live under a unique prefix and are removed in `afterAll`.
+ *
+ * Dates are in 2025 — before the programme existed (so no real data collides) and, just as
+ * importantly, before the Coding Hours submission-window cut-over (`SUBMISSION_WINDOW_EFFECTIVE_DAY`).
+ * These suites pin the rule that applies to assignments *before* that date: a solve at any
+ * time counts, within a lookback for practice. The newer 16:00 -> 15:59 rule has its own suite
+ * (`submission-window.e2e-spec.ts`); mixing the two here would test neither.
  */
 
 import { PrismaClient } from '@prisma/client';
@@ -37,12 +43,12 @@ const CODE = `SV${Date.now().toString(36).toUpperCase()}`;
 const IST = '+05:30';
 
 /** Dated in a year the programme will never hold real data for. */
-const ASSIGNMENT_DAY = '2099-09-07';
+const ASSIGNMENT_DAY = '2025-09-07';
 /** Entered into the tracker four days after the work was set. */
-const ENTERED_ON = '2099-09-11';
+const ENTERED_ON = '2025-09-11';
 /** Before the assignment date and before its two-day lookback — the reported case. */
-const SOLVED_BEFORE = '2099-09-04';
-const ENROLLED = '2099-06-01';
+const SOLVED_BEFORE = '2025-09-04';
+const ENROLLED = '2025-06-01';
 
 const ist = (day: string, hhmm: string): Date => new Date(`${day}T${hhmm}:00${IST}`);
 

@@ -165,6 +165,7 @@ export class StudentMetricsService {
       assigned,
       submissions.get(studentId) ?? [],
       ASSIGNMENT_LOOKBACK_DAYS,
+      this.time.timezone,
     );
   }
 

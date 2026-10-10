@@ -4,6 +4,8 @@ import {
   CACHE_TTL,
   SYNC_STATUS_LABELS,
   assignmentWindow,
+  submissionWindowBounds,
+  usesSubmissionWindow,
   completionPercentage,
   describeNotObserved,
   isTrustworthySync,
@@ -639,11 +641,18 @@ export class DashboardService {
     if (slugs.length === 0 || studentIds.length === 0) return floors;
 
     const { startDayKey, endDayKey } = assignmentWindow(dayKey, ASSIGNMENT_LOOKBACK_DAYS);
+    // From the submission-window cut-over a floor may only be proven by a submission made
+    // inside [D 16:00, D+1 15:59:59]; a day-key range would credit a morning submission
+    // that the day's result will not count.
+    const windowed = usesSubmissionWindow(dayKey);
+    const bounds = windowed ? submissionWindowBounds(dayKey, this.time.timezone) : null;
     const rows = await this.prisma.submission.findMany({
       where: {
         studentId: { in: studentIds },
         status: 'ACCEPTED',
-        dayKey: { gte: startDayKey, lte: endDayKey },
+        ...(bounds
+          ? { submittedAt: { gte: bounds.start, lte: bounds.end } }
+          : { dayKey: { gte: startDayKey, lte: endDayKey } }),
         titleSlug: { in: slugs },
       },
       select: { studentId: true, titleSlug: true },
@@ -924,6 +933,7 @@ export class DashboardService {
       attemptedNotSolvedCount,
       notAttemptedCount,
       completionTime: this.time.localTime(status.completedAt),
+      completionMinute: status.completionMinute,
       currentStreak: status.student.currentStreak,
       score: status.score,
       rank: rankByStudent.get(status.studentId) ?? null,
@@ -944,11 +954,13 @@ export class DashboardService {
         .filter((row) => row.solvedCount === solved)
         .sort((a, b) => {
           // Within a bucket, whoever finished earliest leads; unfinished sort last.
-          if (a.completionTime && b.completionTime) {
-            return a.completionTime.localeCompare(b.completionTime);
+          // By minutes since the assignment opened, not the wall clock: across a window that
+          // spans midnight "08:00" would otherwise sort ahead of the evening before.
+          if (a.completionMinute != null && b.completionMinute != null) {
+            return a.completionMinute - b.completionMinute;
           }
-          if (a.completionTime) return -1;
-          if (b.completionTime) return 1;
+          if (a.completionMinute != null) return -1;
+          if (b.completionMinute != null) return 1;
           return b.currentStreak - a.currentStreak || a.name.localeCompare(b.name);
         });
 
