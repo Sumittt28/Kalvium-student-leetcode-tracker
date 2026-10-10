@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Settings2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { QUESTION_BANK_GROUP_LABELS, type AssignmentSummary, type QuestionBankSetDto } from '@dsa/shared';
+import { QUESTION_BANK_GROUP_LABELS, type AssignmentSummary, type QuestionBankGroup, type QuestionBankSetDto } from '@dsa/shared';
 
 import { api } from '@/lib/api';
 import { todayKey } from '@/lib/utils';
@@ -71,6 +71,7 @@ function AssignmentsPageInner() {
     retry: false,
   });
   const [bankLabel, setBankLabel] = useState<string | null>(null);
+  const [bankGroup, setBankGroup] = useState<QuestionBankGroup | null>(null);
   const bankApplied = useRef(false);
   useEffect(() => {
     if (!bankSet.data || bankApplied.current) return;
@@ -79,6 +80,7 @@ function AssignmentsPageInner() {
     setUrls(set.questions.map((question) => question.url));
     setTopic(`${QUESTION_BANK_GROUP_LABELS[set.group].split(' — ')[0]} · ${bankSetLabel(set)}`);
     setBankLabel(`${QUESTION_BANK_GROUP_LABELS[set.group]} · ${bankSetLabel(set)}`);
+    setBankGroup(set.group);
     setCreating(true);
   }, [bankSet.data]);
   useEffect(() => {
@@ -134,6 +136,23 @@ function AssignmentsPageInner() {
   });
   const batches = targetBatches.data ?? [];
   const batchesLoading = targetBatches.isLoading;
+
+  /**
+   * Group 1 questions belong to the campus's G1 batch and Group 2 to G2. Nothing enforces
+   * that — the audience is the mentor's explicit choice, as always — so a mismatch (or
+   * "all batches") is flagged rather than blocked. Only campuses that actually have G1/G2
+   * batches are checked: SRM is a single batch and has nothing to mismatch.
+   */
+  const expectedBankBatch = bankGroup === 'GROUP_1' ? 'G1' : bankGroup === 'GROUP_2' ? 'G2' : null;
+  const campusIsSplit = batches.some((b) => b.code === 'G1' || b.code === 'G2');
+  const bankAudienceWarning =
+    expectedBankBatch && campusIsSplit && batchChoiceMade
+      ? targetBatchIds.length === 0
+        ? `These are ${expectedBankBatch} questions, but "All batches" is selected — that would also reach the other group.`
+        : batches.some((b) => targetBatchIds.includes(b.id) && b.code !== expectedBankBatch)
+          ? `These are ${expectedBankBatch} questions, but a batch other than ${expectedBankBatch} is selected.`
+          : null
+      : null;
   const batchSelectionRequired = targetCampusId !== null && batches.length > 0;
 
   const history = useQuery({
@@ -245,6 +264,11 @@ function AssignmentsPageInner() {
               <div className="rounded-lg border border-[var(--color-brand)] bg-[var(--color-brand-soft)] px-3 py-2 text-xs">
                 <strong>Pre-filled from the Question Bank:</strong> {bankLabel}. Pick the date and choose the
                 campus and batch below — they are not set for you.
+              </div>
+            ) : null}
+            {bankAudienceWarning ? (
+              <div className="rounded-lg border border-[var(--color-warning)] bg-[var(--color-warning-soft)] px-3 py-2 text-xs text-[var(--color-warning)]">
+                {bankAudienceWarning}
               </div>
             ) : null}
             <div className="grid gap-3 sm:grid-cols-2">

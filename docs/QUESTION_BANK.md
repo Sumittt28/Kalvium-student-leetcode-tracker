@@ -60,13 +60,30 @@ and printed on every import; the source rows themselves are left as supplied.
 | 540 | `dsingle-element-in-a-sorted-array` (row 79) | `single-element-in-a-sorted-array` |
 | 518 | `coin-change-2` (row 291) | `coin-change-ii` |
 
-## Not built yet — needs a decision
+## Groups are batches
 
-**Group-aware assignment creation.** Today a student's assignment is chosen only by
-(campus, batch), and the database allows one assignment per (day, campus, batch). Nothing
-models "Group 1" or "Group 2" on a student, so a group label on an assignment would be
-cosmetic and two groups in one campus/batch would collide. The hand-off therefore only
-pre-fills the existing form; the mentor still picks the campus and batch explicitly.
+Group 1 and Group 2 are real batches at VELS and ALU — **G1** (cohorts 1 and 2: highest belt 4 and 5)
+and **G2** (cohort 3: highest belt 6+) — and SRM is one batch, **SPE 2024-28**. The old
+"Foundation Level" / "Intermediate Level" batches are archived, not deleted. So a Group 1 day goes
+to the campus's G1 batch and a Group 2 day to G2, through the unchanged one-assignment-per-day,
+campus and batch rule; no scoring or resolver change was needed.
 
-**Group 1: six curriculum days per week vs five practice days.** All six are kept and shown;
-no day is skipped, merged or scheduled. Which five map to the operating week is undecided.
+`/assignments?fromBank=` still pre-fills only the links and topic. The audience stays an explicit
+choice, but picking "All batches" or the wrong group's batch on a G1/G2 campus now shows a warning.
+
+### Re-placing students (`scripts/g1-g2-cohort-apply.ts`)
+
+Applies a reviewed plan file (names/emails — kept outside the repo): creates the batches, retires the
+old ones, sets cohorts, moves students and reactivates archived ones. Moves are written exactly as
+`BatchesService.moveStudent` writes them, with an explicit effective day (`--effective`, default the
+Monday the plan starts), so no already-scored day is rewritten. Dry run by default; `--apply` saves a
+before-snapshot first; `--undo applied-<stamp>.json` restores every student and batch from it.
+Rehearsed on a restore of the production backup: apply -> verify -> undo gave 0 mismatches.
+
+Belt -> cohort: highest belt 4 -> cohort 1, 5 -> cohort 2, 6+ -> cohort 3. Belts 1-3 are handled by
+the campus team: not placed in G1/G2, and left as they are if archived.
+
+## Still open
+
+**Group 1: six curriculum days per week vs five practice days.** All six are kept and shown; no day is
+skipped, merged or scheduled. Which five map to the operating week is undecided.
