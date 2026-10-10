@@ -4,11 +4,14 @@ name: Nightly Rollup
 # streaks, aggregates) and prunes expired tokens/old logs, by calling the backend's
 # internal endpoint with the shared CRON_SECRET.
 #
-# The backend resolves "yesterday" in PROGRAM_TIMEZONE, so this must fire just after the
-# program day ends. 19:00 UTC == 00:30 Asia/Kolkata. Adjust if PROGRAM_TIMEZONE changes.
+# The backend resolves "yesterday" in PROGRAM_TIMEZONE. From 12 Oct 2026 a Coding Hours
+# assignment dated D accepts submissions until 15:59 IST on D+1, so D is not final at
+# midnight: this runs at 17:20 IST, after the 16:00 and 17:00 syncs (sync.yml) have mirrored
+# everything up to the cut-off and finished. 11:50 UTC == 17:20 Asia/Kolkata. Adjust if PROGRAM_TIMEZONE or the
+# window (packages/shared submission-window.ts) changes.
 on:
   schedule:
-    - cron: '0 19 * * *'
+    - cron: '50 11 * * *'
   workflow_dispatch: {}
 
 concurrency:

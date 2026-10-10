@@ -3,7 +3,12 @@
 What happens when an assignment is entered *after* the date it applies to — and why the
 sync has to do more than recompute today.
 
-## The rule
+> **From 12 Oct 2026 this no longer applies to new assignments.** Coding Hours assignments dated
+> on or after that day count only submissions made from 16:00 on the assignment day to 15:59 the
+> next day — see [SUBMISSION_WINDOW.md](SUBMISSION_WINDOW.md). The rule below still governs every
+> earlier assignment and is unchanged for them.
+
+## The rule (assignments before 12 Oct 2026)
 
 **An assigned problem the student has solved at any time counts as solved.** No date
 filter applies to that judgement — not the assignment's day, not a lookback window, and

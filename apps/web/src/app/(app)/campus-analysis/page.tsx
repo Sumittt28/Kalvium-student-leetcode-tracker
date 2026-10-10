@@ -106,7 +106,9 @@ export default function CampusAnalysisPage() {
           <h1 className="text-lg font-semibold tracking-tight">Campus analysis</h1>
           <p className="mt-1 text-xs text-[var(--color-fg-muted)]">
             {period ? `${period.from} to ${period.to}` : null} · A question counts as solved if the
-            student has ever solved it, whenever that was.
+            student solved it inside its window — 16:00 on the day it is set to 15:59 the next
+            day — for questions set from 12 Oct 2026. Earlier questions count a solve from any
+            time.
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
@@ -233,7 +235,7 @@ export default function CampusAnalysisPage() {
             "Questions" figures are distinct LeetCode problems over the whole period, so a
             problem set in two weeks counts once here. The outcome figures are student x
             question: each student set a question contributes one solved / attempted /
-            not-attempted verdict, from the same ever-solved statuses as everywhere else.
+            not-attempted verdict, from the same stored statuses as everywhere else.
           */}
           <div className="grid grid-cols-2 gap-x-8 gap-y-3 border-b border-[var(--color-border)] px-5 py-4 sm:grid-cols-4">
             <Figure label="Questions assigned" value={campus.assigned} />
