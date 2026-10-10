@@ -22,6 +22,7 @@ import {
   ASSIGNMENT_LOOKBACK_DAYS,
   calculateAssignmentCompletion,
   computeStreaks,
+  STREAKS_COUNT_FROM_DAY,
   selectAssignmentForBatch,
   type AssignedProblemRef,
   type AssignmentCompletionResult,
@@ -251,6 +252,7 @@ export class StudentMetricsService {
 
     return computeStreaks(days, today, config, {
       enrolledFromDayKey: student ? this.time.dayKeyOf(student.createdAt) : null,
+      countFromDayKey: STREAKS_COUNT_FROM_DAY,
     });
   }
 

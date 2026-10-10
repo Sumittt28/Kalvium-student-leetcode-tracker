@@ -20,6 +20,8 @@ import {
   COMPLETION_RULES_VERSION,
   computeDailyScore,
   computeStreaks,
+  STREAKS_COUNT_FROM_DAY,
+  streakFloorFor,
   isCurrentStudent,
   isPerfectDay,
   rankEntries,
@@ -271,7 +273,12 @@ export class RollupService {
       days.push({ dayKey, solvedCount: inWindowSolvedCount, assignedCount });
       // Assignment days before the student joined are not misses — drop them rather
       // than let them zero out a streak the student never had a chance to earn.
-      const streaks = computeStreaks(days, dayKey, config, { enrolledFromDayKey });
+      // Scoring `dayKey` itself: a day on or after the initiative start counts streaks from it,
+      // an earlier day keeps its original streak so recomputing history changes nothing.
+      const streaks = computeStreaks(days, dayKey, config, {
+        enrolledFromDayKey,
+        countFromDayKey: streakFloorFor(dayKey),
+      });
 
       // Minutes since the assignment *opened*: the plain minute of the day for assignments
       // before the submission-window cut-over, minutes since 16:00 from then on. Stored this
@@ -403,6 +410,8 @@ export class RollupService {
         {
           enrolledFromDayKey:
             observedFromDay.get(student.id) ?? this.time.dayKeyOf(student.createdAt),
+          // The totals shown on screens restart with the tweaked initiative.
+          countFromDayKey: STREAKS_COUNT_FROM_DAY,
         },
       );
 

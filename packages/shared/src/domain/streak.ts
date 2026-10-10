@@ -26,6 +26,7 @@
 
 import type { DayKey } from './time';
 import { toMonthKey, toWeekKey } from './time';
+import { SUBMISSION_WINDOW_EFFECTIVE_DAY } from './submission-window';
 import type { ScoringConfig } from './scoring';
 import { DEFAULT_SCORING_CONFIG, requiredSolvedForStreak } from './scoring';
 
@@ -66,7 +67,34 @@ function qualifies(day: StreakDay, config: ScoringConfig): boolean {
   return day.solvedCount >= requiredSolvedForStreak(day.assignedCount, config);
 }
 
+/**
+ * The first program day a streak can be counted from: the start of the tweaked Coding Hours
+ * initiative (Monday 12 Oct 2026). Every streak and "longest streak" shown from then on starts
+ * at 0 on this day — nothing earlier contributes to either.
+ *
+ * Earlier results are not deleted or rewritten: `DailyStatus` keeps every day exactly as it was,
+ * including each day's stored `streakAtDay`. Only the *displayed* totals and the streak points
+ * of days on or after this one are measured from here.
+ */
+export const STREAKS_COUNT_FROM_DAY: DayKey = SUBMISSION_WINDOW_EFFECTIVE_DAY;
+
+/**
+ * The floor to use when scoring `dayKey` itself.
+ *
+ * A day before the initiative started keeps the older, uncut streak — recomputing 5 Oct must
+ * still give 5 Oct's original score. A day on or after it counts from the start.
+ */
+export function streakFloorFor(dayKey: DayKey): DayKey | null {
+  return dayKey >= STREAKS_COUNT_FROM_DAY ? STREAKS_COUNT_FROM_DAY : null;
+}
+
 export interface StreakOptions {
+  /**
+   * Assignment days before this are ignored entirely — not misses, simply not part of the
+   * streak. Used to restart streaks at the start of the tweaked initiative. When both this and
+   * `enrolledFromDayKey` are set, the later one wins.
+   */
+  countFromDayKey?: DayKey | null;
   /**
    * First program day the student was enrolled. Assignment days before this are dropped
    * entirely rather than counted as misses — a student who joined in week 3 has not
@@ -85,7 +113,11 @@ export function computeStreaks(
   config: ScoringConfig = DEFAULT_SCORING_CONFIG,
   options: StreakOptions = {},
 ): StreakResult {
-  const enrolledFrom = options.enrolledFromDayKey ?? null;
+  const enrolled = options.enrolledFromDayKey ?? null;
+  const countFrom = options.countFromDayKey ?? null;
+  // The later of the two bounds: a student who joined after the restart counts from joining.
+  const enrolledFrom =
+    enrolled && countFrom ? (enrolled > countFrom ? enrolled : countFrom) : (enrolled ?? countFrom);
 
   const assignedDays = days
     .filter((d) => d.assignedCount > 0)

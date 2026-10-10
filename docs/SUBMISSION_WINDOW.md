@@ -50,3 +50,21 @@ The cut-over date, opening hour and window length are constants in `submission-w
 `attempts-check.service.ts` and the two workflow schedules must move with them. Tests:
 `submission-window.spec.ts`, `assignment-completion-window.spec.ts`, and the database suite
 `scoring/submission-window.e2e-spec.ts` (which also checks the service against the SQL).
+
+## Streaks restart on 12 Oct 2026
+
+With the tweaked initiative, **every streak and "longest streak" starts at 0 on Monday 12 Oct 2026**
+and counts only days from then on, using the window above. Nothing earlier contributes to either.
+
+- **Shown totals** (leaderboard, mentor view, dashboard, profiles, student portal, badges) are rebuilt
+  with `countFromDayKey: STREAKS_COUNT_FROM_DAY`, so they read 0 now and grow from Monday. They update
+  on the next sync.
+- **Streak points in the daily score** (2 per streak day, capped at 30) restart too: a day on or after
+  12 Oct is scored with a streak counted from 12 Oct.
+- **History is not rewritten.** A day before 12 Oct keeps its original streak (`streakFloorFor` returns
+  no floor for it), so recomputing 5 Oct reproduces 5 Oct's original score and stored `streakAtDay`.
+  Profile pages that show an old day's streak still show what it was then.
+- **Consistency of a restart is by assignment date,** like the window. A student who joins after 12 Oct
+  counts from joining (the later of the two dates wins).
+- To undo: set `STREAKS_COUNT_FROM_DAY` back (or remove the option in the three callers) and let the
+  next sync rebuild the totals; the old figures are still derivable from `DailyStatus`.
