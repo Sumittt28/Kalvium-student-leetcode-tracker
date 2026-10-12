@@ -19,8 +19,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, BookOpen, ChevronLeft, ChevronRight, ExternalLink, Search, X } from 'lucide-react';
 import {
-  GROUP_1_OPERATIONAL_DAYS_PER_WEEK,
-  GROUP_1_SOURCE_DAYS_PER_WEEK,
+  GROUP_1_PRACTICE_DAYS_PER_WEEK,
   QUESTION_BANK_GROUPS,
   QUESTION_BANK_GROUP_DESCRIPTIONS,
   QUESTION_BANK_GROUP_LABELS,
@@ -165,10 +164,8 @@ function QuestionBank() {
 
       {group === 'GROUP_1' ? (
         <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-sunken)] px-4 py-3 text-xs text-[var(--color-fg-muted)]">
-          The Group 1 curriculum lists <strong>{GROUP_1_SOURCE_DAYS_PER_WEEK} days per week</strong>, while
-          questions are shared on <strong>{GROUP_1_OPERATIONAL_DAYS_PER_WEEK}</strong> practice days (none on the
-          concept-session day). All {GROUP_1_SOURCE_DAYS_PER_WEEK} are shown here unchanged — choose the day you
-          want to assign.
+          Group 1 has <strong>{GROUP_1_PRACTICE_DAYS_PER_WEEK} practice days per week</strong>, four questions
+          a day. No questions are shared on the weekly concept-session day.
         </div>
       ) : null}
 
@@ -287,7 +284,7 @@ function FilterBar({
             {opt(g1Weeks)}
           </Select>
           <Select id="qb-day" label="Curriculum day" value={filters.day} onChange={(v) => update({ day: v })}>
-            {opt([1, 2, 3, 4, 5, 6])}
+            {opt(Array.from({ length: GROUP_1_PRACTICE_DAYS_PER_WEEK }, (_, i) => i + 1))}
           </Select>
           <Select id="qb-topic" label="Topic" value={filters.topic} onChange={(v) => update({ topic: v })}>
             {opt(options?.topics)}

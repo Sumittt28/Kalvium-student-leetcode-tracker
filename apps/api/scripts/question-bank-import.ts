@@ -14,12 +14,15 @@
  *   - Existing `Problem` rows are never modified (their metadata, and any history hanging
  *     off them, is left alone) and are not re-fetched.
  *   - Entries are keyed on (setKey, position); a re-run updates in place and never
- *     duplicates. Nothing is ever deleted.
+ *     duplicates. Nothing is deleted unless you pass --prune, which removes only
+ *     question-bank entries the source no longer contains (never a Problem, never an
+ *     assignment — entries are not referenced by either).
  *   - Any validation issue aborts before a single write.
  *
  * Run with:
  *   DATABASE_URL=... npx tsx apps/api/scripts/question-bank-import.ts            # dry run
  *   DATABASE_URL=... npx tsx apps/api/scripts/question-bank-import.ts --apply     # write
+ *   DATABASE_URL=... npx tsx apps/api/scripts/question-bank-import.ts --apply --prune  # write + remove stale entries
  *
  * Take a backup first against production:
  *   pg_dump -Fc "$DATABASE_URL" > tmp/backups/pre-question-bank-import-<stamp>.dump
@@ -38,6 +41,8 @@ import {
 } from '../src/modules/question-bank/question-bank-source';
 
 const APPLY = process.argv.includes('--apply');
+/** Also delete entries the source no longer contains (e.g. the retired sixth Group 1 day). */
+const PRUNE = process.argv.includes('--prune');
 const prisma = new PrismaClient();
 
 function sameEntry(
@@ -112,6 +117,9 @@ async function main(): Promise<void> {
   console.log(`  Problems already present (reused, untouched): ${plan.problems.length - toCreate.length}`);
   console.log(`  Problems to create (metadata fetched once):   ${toCreate.length}`);
   console.log(`  Question-bank entries already present:        ${existingEntries.length}`);
+  const wanted = new Set(plan.entries.map((e) => `${e.setKey}#${e.position}`));
+  const stale = existingEntries.filter((e) => !wanted.has(`${e.setKey}#${e.position}`));
+  console.log(`  Entries no longer in the source:              ${stale.length}${stale.length ? (PRUNE ? ' (will be deleted)' : ' (kept — pass --prune to delete)') : ''}`);
 
   if (!APPLY) {
     let wouldCreate = 0;
@@ -124,7 +132,7 @@ async function main(): Promise<void> {
       else if (sameEntry(hit as unknown as Record<string, unknown>, seed, pid)) unchanged += 1;
       else wouldUpdate += 1;
     }
-    console.log(`  Entries: ${wouldCreate} would be created, ${wouldUpdate} updated, ${unchanged} unchanged`);
+    console.log(`  Entries: ${wouldCreate} would be created, ${wouldUpdate} updated, ${unchanged} unchanged${PRUNE ? `, ${stale.length} deleted` : ''}`);
     console.log('\nDry run only. Nothing was written.');
     return;
   }
@@ -183,8 +191,13 @@ async function main(): Promise<void> {
   let createdEntries = 0;
   let updatedEntries = 0;
   let unchangedEntries = 0;
+  let deletedEntries = 0;
   await prisma.$transaction(
     async (tx) => {
+      if (PRUNE && stale.length > 0) {
+        const res = await tx.questionBankEntry.deleteMany({ where: { id: { in: stale.map((e) => e.id) } } });
+        deletedEntries = res.count;
+      }
       for (const seed of plan.entries) {
         const problemId = problemIdBySlug.get(seed.titleSlug);
         if (!problemId) throw new Error(`No problem id for ${seed.titleSlug}`);
@@ -205,7 +218,7 @@ async function main(): Promise<void> {
   );
 
   const total = await prisma.questionBankEntry.count();
-  console.log(`\n  Entries: ${createdEntries} created, ${updatedEntries} updated, ${unchangedEntries} unchanged`);
+  console.log(`\n  Entries: ${createdEntries} created, ${updatedEntries} updated, ${unchangedEntries} unchanged, ${deletedEntries} deleted`);
   console.log(`  question_bank_entries now holds ${total} rows (expected ${plan.entries.length}).`);
   if (total !== plan.entries.length) {
     console.log('  WARNING: row count differs from the source — investigate before relying on the bank.');

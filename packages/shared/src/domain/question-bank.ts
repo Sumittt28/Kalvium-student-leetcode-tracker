@@ -4,8 +4,9 @@
  * Two datasets, kept apart on purpose:
  *
  *   Group 1 — Dojo / Belt Progression. Identified by `Belt + Week + Day`; four questions
- *             per day, ordered by `Q#`. Belts have different lengths, and the source
- *             carries six curriculum days per week (see `GROUP_1_SOURCE_DAYS_PER_WEEK`).
+ *             per day, ordered by `Q#`. Belts have different lengths; every belt-week has
+ *             five practice days (`GROUP_1_PRACTICE_DAYS_PER_WEEK`), because no questions are
+ *             shared on the weekly concept-session day.
  *   Group 2 — Placement Readiness. 16 weeks x 5 practice days; identified by the running
  *             `Day #` (1-80); four questions per day with a Warm-up / Core / Stretch role.
  *
@@ -38,13 +39,12 @@ export const QUESTION_ROLES = ['Warm-up', 'Core', 'Stretch'] as const;
 export type QuestionRole = (typeof QUESTION_ROLES)[number];
 
 /**
- * The supplied Group 1 data has six curriculum days per belt-week, while the operating
- * rule is five practice days (no questions are shared on the weekly concept-session day).
- * Which five of the six map to the practice week has NOT been decided, so all six are kept
- * and nothing here schedules, skips or merges a day.
+ * Group 1 practice days per belt-week: 5 x 4 = 20 questions. The weekly concept-session day
+ * carries no questions. (The original sheet listed six days; the five were chosen against the
+ * Belt Concept Mapping table — see `apps/api/prisma/question-bank/build_five_day.py` and
+ * `docs/QUESTION_BANK.md`. The six-day data is kept as `group1.six-day.json`.)
  */
-export const GROUP_1_SOURCE_DAYS_PER_WEEK = 6;
-export const GROUP_1_OPERATIONAL_DAYS_PER_WEEK = 5;
+export const GROUP_1_PRACTICE_DAYS_PER_WEEK = 5;
 
 const SOURCE_DIFFICULTIES = ['Easy', 'Medium', 'Hard'] as const;
 export type SourceDifficulty = (typeof SOURCE_DIFFICULTIES)[number];

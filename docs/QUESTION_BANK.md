@@ -6,19 +6,19 @@ itself.** Progress is still measured only by `Assignment` + the submission mirro
 
 | | Group 1 — Dojo / Belt Progression | Group 2 — Placement Readiness |
 |---|---|---|
-| Source rows / four-question days | 960 / 240 | 320 / 80 |
+| Source rows / four-question days | 800 / 200 (5 days x 40 weeks) | 320 / 80 |
 | Identified by | Belt + Week + Day (day 1–6) | Running Day # (1–80) |
 | Belts / weeks | Belts 1–10, each its own length | 16 weeks × 5 days |
 | Extra metadata kept | Topic, Pattern, Day Focus, Usage | Weekday, Daily theme, Role (Warm-up/Core/Stretch) |
 
-261 problems appear in both groups. Each occurrence is its own `QuestionBankEntry`; they share
-one `Problem` row (1,019 distinct problems in total).
+226 problems appear in both groups. Each occurrence is its own `QuestionBankEntry`; they share
+one `Problem` row (894 distinct problems in total).
 
 ## Where things live
 
 | What | Where |
 |---|---|
-| Source data (version-controlled) | `apps/api/prisma/question-bank/group1.json`, `group2.json` |
+| Source data (version-controlled) | `apps/api/prisma/question-bank/group1.json` (five-day plan), `group2.json`; the original six-day data is kept as `group1.six-day.json` |
 | Regenerate the JSON from the workbooks | `apps/api/prisma/question-bank/xlsx_to_json.py` |
 | Explicit, evidenced slug fixes | `apps/api/prisma/question-bank/slug-corrections.json` |
 | Validation + planning (pure) | `packages/shared/src/domain/question-bank.ts`, `apps/api/src/modules/question-bank/question-bank-source.ts` |
@@ -45,7 +45,7 @@ DATABASE_URL=... npx tsx apps/api/scripts/question-bank-import.ts --apply
 - Safe to re-run: existing `Problem` rows are never modified or re-fetched; entries are keyed on
   `(setKey, position)`; nothing is deleted; any validation issue aborts before the first write.
 - The apply step looks up LeetCode metadata **once** for problems the database lacks (~8 min for a
-  database that has none of the 1,019). Assigning a day later does no LeetCode lookups.
+  database that has none of the 894). Assigning a day later does no LeetCode lookups.
 - It needs `LEETCODE_*`/`PROVIDER_*` defaults only; no credentials.
 
 ## Two source errors found and handled visibly
@@ -83,7 +83,30 @@ Rehearsed on a restore of the production backup: apply -> verify -> undo gave 0 
 Belt -> cohort: highest belt 4 -> cohort 1, 5 -> cohort 2, 6+ -> cohort 3. Belts 1-3 are handled by
 the campus team: not placed in G1/G2, and left as they are if archived.
 
-## Still open
+## Group 1 is five practice days a week
 
-**Group 1: six curriculum days per week vs five practice days.** All six are kept and shown; no day is
-skipped, merged or scheduled. Which five map to the operating week is undecided.
+No questions are shared on the weekly concept-session day, so each belt-week has **5 days x 4 questions
+= 20**, not the 6 x 4 = 24 of the original sheet. The five were chosen against the *Belt Concept
+Mapping* table and the weekly session roadmap — nothing was added from outside the sheet:
+
+- Exactly **one day is dropped per week** and the other five are untouched (same four questions, same
+  Easy -> Hard order). A day outside the belt's listed topics goes first, then days the roadmap marks as
+  self-practice, then the most redundant one; the challenge day is kept whenever it is in scope.
+- Two weeks (Belt 4 Week 1, Belt 6 Week 1) had two off-concept days, so both were removed and one clean
+  day was composed from their in-scope questions. Three single-question swaps replace a clear
+  off-concept question. Every decision and its reason is in `group1.selection.json`.
+- Belts 1-3 stay free of Hard problems, no problem repeats, each day is Easy -> Medium -> Hard.
+- 160 questions were removed (Easy/Medium/Hard 280/546/134 -> 251/454/95; Hard 14% -> 12%).
+
+To regenerate or revise: edit the decisions in `build_five_day.py`, run it (add
+`--xlsx <file> --master <master sheet>` for the review workbook), then load with
+`question-bank-import.ts --apply --prune` — `--prune` deletes only question-bank entries the source no
+longer contains (never a Problem, never an assignment). The original six-day data is
+`group1.six-day.json`.
+
+### Borderline questions and thin topics
+
+Seven days carry a question that is only borderline for its belt, and six table topics have no (or
+thin) coverage in the sheet (for example basic string compression, #443, and Quick Sort partitioning
+itself). They are listed, not hidden, in the workbook's *Flags & Gaps* sheet and in
+`group1.selection.json`; nothing was invented to fill them.

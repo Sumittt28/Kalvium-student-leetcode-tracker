@@ -1,0 +1,567 @@
+{
+ "log": [
+  {
+   "belt": 1,
+   "week": 1,
+   "droppedDays": [
+    6
+   ],
+   "composed": false,
+   "reason": "Only day labelled 'preview of Belt 2': 3 of its 4 problems need loops/arrays, which Yellow Belt does not teach. Functions/return values are exercised by every problem on Days 1-5.",
+   "swaps": [
+    {
+     "out": [
+      3,
+      2
+     ],
+     "inn": [
+      6,
+      1
+     ],
+     "why": "Minimum Time Visiting All Points iterates an array of points (arrays/loops are Orange/Green Belt); Account Balance After Rounded Purchase is pure arithmetic + a condition, which is Yellow Belt."
+    }
+   ]
+  },
+  {
+   "belt": 2,
+   "week": 1,
+   "droppedDays": [
+    6
+   ],
+   "composed": false,
+   "reason": "Digit problems are listed as self-practice this week and Day 3 already covers digit extraction with while-loops; Day 6 repeats it.",
+   "swaps": []
+  },
+  {
+   "belt": 2,
+   "week": 2,
+   "droppedDays": [
+    6
+   ],
+   "composed": false,
+   "reason": "Challenge day drifts past elementary sorting (custom comparator 'Largest Number', greedy 'Maximum Number of Coins'). Days 1-5 cover bubble/selection/insertion, stability and selection.",
+   "swaps": []
+  },
+  {
+   "belt": 2,
+   "week": 3,
+   "droppedDays": [
+    4
+   ],
+   "composed": false,
+   "reason": "Digit problems belong to Week 1 (self-practice) and are not in this week's session topics; the other five days are each a required topic (GCD/LCM, primes, sieve, modular arithmetic, fast exponentiation).",
+   "swaps": []
+  },
+  {
+   "belt": 3,
+   "week": 1,
+   "droppedDays": [
+    6
+   ],
+   "composed": false,
+   "reason": "Complexity growth is Week 3's topic and count-array intersections are Week 2's; Day 6 duplicates both. Days 1-5 cover traversal, rotation, shifting, dedupe/merge, rearranging.",
+   "swaps": []
+  },
+  {
+   "belt": 3,
+   "week": 2,
+   "droppedDays": [
+    6
+   ],
+   "composed": false,
+   "reason": "Zigzag Conversion, atoi and Integer to Roman are outside the Green Belt string topics (palindrome, anagram, reverse, basic compression). Days 1-5 cover the rest of the session.",
+   "swaps": []
+  },
+  {
+   "belt": 3,
+   "week": 3,
+   "droppedDays": [
+    5
+   ],
+   "composed": false,
+   "reason": "In-place updates beyond the table (Game of Life, Image Smoother). The one named table item in it, Set Matrix Zeroes, is swapped into Day 4 in place of Valid Sudoku. Day 6 (complexity growth) is kept: it is a listed topic.",
+   "swaps": [
+    {
+     "out": [
+      4,
+      4
+     ],
+     "inn": [
+      5,
+      2
+     ],
+     "why": "Valid Sudoku is a hash-set validity problem outside Green Belt; Set Matrix Zeroes is the table's named matrix item."
+    }
+   ]
+  },
+  {
+   "belt": 4,
+   "week": 1,
+   "droppedDays": [
+    5,
+    6
+   ],
+   "composed": true,
+   "reason": "Days 5-6 are almost entirely 2D prefix sums / difference arrays, which Purple Belt (1D prefix/suffix sums, prefix XOR) does not list. One clean challenge day is composed from the in-scope questions: Minimum Value to Get Positive Step by Step Sum and the two 1D difference-array problems (Corporate Flight Bookings, Car Pooling). Range Sum Query 2D is the closest in-family fourth problem and is flagged.",
+   "swaps": []
+  },
+  {
+   "belt": 4,
+   "week": 2,
+   "droppedDays": [
+    1
+   ],
+   "composed": false,
+   "reason": "Easy set-membership warm-up that Day 2 and Green Belt frequency counting already cover; keeps the challenge day (Day 6) and subarray-sum hashing (Day 5).",
+   "swaps": []
+  },
+  {
+   "belt": 4,
+   "week": 3,
+   "droppedDays": [
+    6
+   ],
+   "composed": false,
+   "reason": "Counting/Radix is only a short closing segment of this session, already covered by Day 5; Day 6 adds 'Top K Frequent Words' (a Red Belt heap topic) and bucket-sort extras.",
+   "swaps": []
+  },
+  {
+   "belt": 4,
+   "week": 4,
+   "droppedDays": [
+    1
+   ],
+   "composed": false,
+   "reason": "Easy converging-pointer warm-up that Days 2-3 already cover (opposite-direction pairs, container, trapping water); keeps the challenge day.",
+   "swaps": []
+  },
+  {
+   "belt": 4,
+   "week": 5,
+   "droppedDays": [
+    5
+   ],
+   "composed": false,
+   "reason": "'Count subarrays with window' (at-most-K) goes beyond the fixed/variable window the table lists; Days 1-4 and 6 cover fixed, variable and complement windows.",
+   "swaps": []
+  },
+  {
+   "belt": 4,
+   "week": 6,
+   "droppedDays": [
+    6
+   ],
+   "composed": false,
+   "reason": "Median of Two Sorted Arrays, Time Based Key-Value Store and K Closest Elements go beyond the table's binary-search topics. Peak element and 2D search (Days 4-5) are table topics and are kept.",
+   "swaps": []
+  },
+  {
+   "belt": 5,
+   "week": 1,
+   "droppedDays": [
+    6
+   ],
+   "composed": false,
+   "reason": "Rotate/split/swap/merge-in-between repeats the rewiring already practised on Days 3-4; Linked Lists is the week batches slow down on.",
+   "swaps": []
+  },
+  {
+   "belt": 5,
+   "week": 2,
+   "droppedDays": [
+    6
+   ],
+   "composed": false,
+   "reason": "Linked List Random Node (reservoir sampling) and LFU Cache (design) are outside Blue Belt; Day 5's Merge k Sorted Lists (a Red Belt heap topic) is swapped for an in-concept problem from this day.",
+   "swaps": [
+    {
+     "out": [
+      5,
+      4
+     ],
+     "inn": [
+      6,
+      2
+     ],
+     "why": "Merge k Sorted Lists is a Red Belt heap topic; Reverse Nodes in Even Length Groups is plain Blue Belt pointer manipulation."
+    }
+   ]
+  },
+  {
+   "belt": 5,
+   "week": 3,
+   "droppedDays": [
+    4
+   ],
+   "composed": false,
+   "reason": "Calculators/path parsing (Basic Calculator II, Simplify Path) go beyond the stack topics listed; Days 1-3 and 5-6 cover matching, design, expressions and monotonic stacks.",
+   "swaps": []
+  },
+  {
+   "belt": 5,
+   "week": 4,
+   "droppedDays": [
+    6
+   ],
+   "composed": false,
+   "reason": "Stack parsing/calculators (two Hard) duplicate Week 3 and are not queue/deque topics; Day 5's monotonic-stack applications are a listed Blue Belt topic and stay.",
+   "swaps": []
+  },
+  {
+   "belt": 6,
+   "week": 1,
+   "droppedDays": [
+    5,
+    6
+   ],
+   "composed": true,
+   "reason": "Days 5-6 are recursive parsing, bit tricks and special strings (four of eight are Hard) beyond Brown Belt's recursion basics. One challenge day is composed from the Medium recursion/backtracking problems of both; the Hard parsing/bit problems are removed.",
+   "swaps": []
+  },
+  {
+   "belt": 6,
+   "week": 2,
+   "droppedDays": [
+    6
+   ],
+   "composed": false,
+   "reason": "Repeats Day 2's merge-sort counting pattern with three more Hard variants.",
+   "swaps": []
+  },
+  {
+   "belt": 6,
+   "week": 3,
+   "droppedDays": [
+    5
+   ],
+   "composed": false,
+   "reason": "'Pairing & grouping after sorting' is greedy sort-and-scan, not Quick Sort/Quickselect; Days 1-2 and 6 are the quickselect days, Days 3-4 the nearest partition/sort reasoning the sheet has.",
+   "swaps": []
+  },
+  {
+   "belt": 6,
+   "week": 4,
+   "droppedDays": [
+    4
+   ],
+   "composed": false,
+   "reason": "String/number generation repeats the generate-all pattern of Days 1-3; Day 5 (pruning) and Day 6 (challenge) cover the rest of the backtracking topics.",
+   "swaps": []
+  },
+  {
+   "belt": 6,
+   "week": 5,
+   "droppedDays": [
+    4
+   ],
+   "composed": false,
+   "reason": "N-Queens and Sudoku Solver are listed as self-practice (Dojo workouts) this week, and 3 of its 4 problems are Hard.",
+   "swaps": []
+  },
+  {
+   "belt": 7,
+   "week": 1,
+   "droppedDays": [
+    4
+   ],
+   "composed": false,
+   "reason": "k-th-smallest-via-counting is a second technique (and includes a number-theory problem) beyond 'can we achieve target X'; Days 1-3, 5-6 cover minimize-max, maximize-min and feasibility checks.",
+   "swaps": []
+  },
+  {
+   "belt": 7,
+   "week": 2,
+   "droppedDays": [
+    5
+   ],
+   "composed": false,
+   "reason": "Digit/sequence greedy (Maximum Swap, Monotone Digits, Wiggle) is the least aligned to the table's sort-then-choose, scheduling, Jump Game and Gas Station.",
+   "swaps": []
+  },
+  {
+   "belt": 7,
+   "week": 3,
+   "droppedDays": [
+    2
+   ],
+   "composed": false,
+   "reason": "Pure greedy-on-strings is more of Week 2; this week is about choosing between binary search and greedy (Days 3, 4, 6).",
+   "swaps": []
+  },
+  {
+   "belt": 8,
+   "week": 1,
+   "droppedDays": [
+    6
+   ],
+   "composed": false,
+   "reason": "Tree views and vertical order are listed as self-practice this week.",
+   "swaps": []
+  },
+  {
+   "belt": 8,
+   "week": 2,
+   "droppedDays": [
+    6
+   ],
+   "composed": false,
+   "reason": "Serialize/Deserialize BST is self-practice, Unique BST II is generation beyond BST operations, and LCA is covered next week.",
+   "swaps": []
+  },
+  {
+   "belt": 8,
+   "week": 3,
+   "droppedDays": [
+    6
+   ],
+   "composed": false,
+   "reason": "Serialize/Deserialize Binary Tree is self-practice; the rest is mixed.",
+   "swaps": []
+  },
+  {
+   "belt": 8,
+   "week": 4,
+   "droppedDays": [
+    5
+   ],
+   "composed": false,
+   "reason": "'Greedy + heap' (hire-K-workers, team performance, two Hard) is greedy-flavoured and beyond the heap topics the table lists.",
+   "swaps": []
+  },
+  {
+   "belt": 9,
+   "week": 1,
+   "droppedDays": [
+    4
+   ],
+   "composed": false,
+   "reason": "Boundary-connected regions repeat the grid-DFS pattern of Day 3.",
+   "swaps": []
+  },
+  {
+   "belt": 9,
+   "week": 2,
+   "droppedDays": [
+    6
+   ],
+   "composed": false,
+   "reason": "Trees-as-graphs (sub-tree label counts, apples, inform employees) are not among the cycle/bipartite/topological topics.",
+   "swaps": []
+  },
+  {
+   "belt": 9,
+   "week": 3,
+   "droppedDays": [
+    6
+   ],
+   "composed": false,
+   "reason": "Mixed modelling (0-1 BFS, DSU-based secret sharing) goes beyond Dijkstra/Bellman-Ford/Floyd-Warshall; algorithm selection is already Day 5.",
+   "swaps": []
+  },
+  {
+   "belt": 9,
+   "week": 4,
+   "droppedDays": [
+    5
+   ],
+   "composed": false,
+   "reason": "Tree-like graph traversal is BFS/DFS from Week 1, not DSU or MST.",
+   "swaps": []
+  },
+  {
+   "belt": 9,
+   "week": 5,
+   "droppedDays": [
+    5
+   ],
+   "composed": false,
+   "reason": "Grid simulation (Battleships, Minesweeper, Coloring a Border) is basic grid traversal from Week 1; the sheet itself notes no free problem needs Kosaraju, so the week is a capstone.",
+   "swaps": []
+  },
+  {
+   "belt": 10,
+   "week": 1,
+   "droppedDays": [
+    5
+   ],
+   "composed": false,
+   "reason": "Stock-buy/sell state machines are not among the DP types the table lists (1D, grid, string, knapsack, LIS, tree).",
+   "swaps": []
+  },
+  {
+   "belt": 10,
+   "week": 2,
+   "droppedDays": [
+    6
+   ],
+   "composed": false,
+   "reason": "Four Hard LCS/supersequence variants that repeat Days 3-4's longest-common-subsequence and edit-distance patterns.",
+   "swaps": []
+  },
+  {
+   "belt": 10,
+   "week": 3,
+   "droppedDays": [
+    5
+   ],
+   "composed": false,
+   "reason": "Arithmetic/Fibonacci-like subsequences go beyond LIS; scheduling DP (Day 6) is the table's weighted-job-scheduling item and stays.",
+   "swaps": []
+  },
+  {
+   "belt": 10,
+   "week": 4,
+   "droppedDays": [
+    5
+   ],
+   "composed": false,
+   "reason": "Probability/board DP (Soup Servings, New 21 Game) is not among the DP types the table lists.",
+   "swaps": []
+  },
+  {
+   "belt": 10,
+   "week": 5,
+   "droppedDays": [
+    3
+   ],
+   "composed": false,
+   "reason": "Day 2 already carries two Hard trie problems; Day 3 adds two more Hard (Palindrome Pairs, Prefix Scores). Tries get Days 1-2, bit manipulation Days 4-6.",
+   "swaps": []
+  },
+  {
+   "belt": 10,
+   "week": 6,
+   "droppedDays": [
+    6
+   ],
+   "composed": false,
+   "reason": "Randomised/frequency design (Random Pick with Weight, All O`one) is not a Black Belt topic and has two Hard. Day 5 (hash-map design) is kept only because the sheet has too few free KMP/Rabin-Karp problems to fill five days.",
+   "swaps": []
+  }
+ ],
+ "flags": [
+  {
+   "belt": 1,
+   "week": 1,
+   "leetcodeNumber": 412,
+   "note": "Fizz Buzz returns a list so it needs a loop (taught in Orange); kept because it is the canonical if-else-ladder exercise."
+  },
+  {
+   "belt": 1,
+   "week": 1,
+   "leetcodeNumber": 3200,
+   "note": "Maximum Height of a Triangle is solved with a small loop; no loop-free replacement exists in the sheet."
+  },
+  {
+   "belt": 1,
+   "week": 1,
+   "leetcodeNumber": 2733,
+   "note": "Neither Minimum nor Maximum takes an array input; the logic is conditionals only."
+  },
+  {
+   "belt": 4,
+   "week": 1,
+   "leetcodeNumber": 304,
+   "note": "Range Sum Query 2D is a 2D prefix sum, one step beyond the 1D prefix sums the table lists; closest in-family fourth problem for the composed day."
+  },
+  {
+   "belt": 4,
+   "week": 1,
+   "leetcodeNumber": 1109,
+   "note": "Corporate Flight Bookings uses a difference array (the inverse of a prefix sum), not named in the table."
+  },
+  {
+   "belt": 4,
+   "week": 1,
+   "leetcodeNumber": 1094,
+   "note": "Car Pooling uses a difference array (the inverse of a prefix sum), not named in the table."
+  },
+  {
+   "belt": 4,
+   "week": 2,
+   "leetcodeNumber": 347,
+   "note": "Top K Frequent Elements is also a Red Belt heap topic; here it is solvable with hashing + sort/bucket."
+  },
+  {
+   "belt": 5,
+   "week": 2,
+   "leetcodeNumber": 146,
+   "note": "LRU Cache is hash map + doubly linked list (design); in-belt but design-flavoured."
+  },
+  {
+   "belt": 6,
+   "week": 3,
+   "leetcodeNumber": 611,
+   "note": "Valid Triangle Number is sort + two pointers, not Quick Sort/Quickselect; the sheet has no further pure Quick Sort problems."
+  },
+  {
+   "belt": 6,
+   "week": 3,
+   "leetcodeNumber": 2971,
+   "note": "Find Polygon With the Largest Perimeter is sort + scan, not Quick Sort/Quickselect."
+  },
+  {
+   "belt": 6,
+   "week": 5,
+   "leetcodeNumber": 131,
+   "note": "Palindrome Partitioning is listed as self-practice (Dojo workout) this week."
+  },
+  {
+   "belt": 10,
+   "week": 6,
+   "leetcodeNumber": 705,
+   "note": "Design HashSet/HashMap are hash-table design (Purple Belt hashing), not KMP/Rabin-Karp; kept to fill five days."
+  },
+  {
+   "belt": 10,
+   "week": 6,
+   "leetcodeNumber": 706,
+   "note": "Design HashSet/HashMap are hash-table design (Purple Belt hashing), not KMP/Rabin-Karp; kept to fill five days."
+  },
+  {
+   "belt": 10,
+   "week": 6,
+   "leetcodeNumber": 380,
+   "note": "Insert Delete GetRandom O(1) is hash + array design, not KMP/Rabin-Karp; kept to fill five days."
+  },
+  {
+   "belt": 10,
+   "week": 6,
+   "leetcodeNumber": 1396,
+   "note": "Design Underground System is hash-map design, not KMP/Rabin-Karp; kept to fill five days."
+  }
+ ],
+ "gaps": [
+  {
+   "belt": 1,
+   "topic": "5. Functions & Parameter Passing",
+   "note": "No dedicated day after Day 6 was removed; every problem is written as a function with parameters and a return value, and scope / pass-by-value belong to the weekly session."
+  },
+  {
+   "belt": 3,
+   "topic": "2. Strings — basic compression ('aaabbc' -> 'a3b2c1')",
+   "note": "The sheet has no String Compression problem (LeetCode 443); the only compression-labelled day was the removed Day 6, whose problems did not cover it. Consider adding #443."
+  },
+  {
+   "belt": 4,
+   "topic": "3. Hashing — longest substring without repeating characters; first non-repeating character",
+   "note": "Neither sits in Week 2; the former is a sliding-window classic and the latter appears in Green Belt (#387)."
+  },
+  {
+   "belt": 6,
+   "topic": "3. Divide & Conquer — Quick Sort partitioning",
+   "note": "The sheet has no problem that needs Quick Sort partitioning itself; Week 3 uses Quickselect and sort-based reasoning."
+  },
+  {
+   "belt": 9,
+   "topic": "9. Strongly Connected Components (Kosaraju's)",
+   "note": "No free LeetCode problem needs Kosaraju; Week 5 uses directed-cycle problems for SCC intuition (as the sheet's own notes say)."
+  },
+  {
+   "belt": 10,
+   "topic": "6. String Matching (KMP / Rabin-Karp)",
+   "note": "Free KMP/Rabin-Karp problems are scarce: Days 1-4 cover them, Day 5 is hash-map design filler."
+  }
+ ],
+ "removed": 160
+}

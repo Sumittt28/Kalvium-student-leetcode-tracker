@@ -9,6 +9,10 @@ as supplied, and the importer's validator reports (never fixes) anything wrong.
 
   python3 xlsx_to_json.py <Kalvium_Dojo_LeetCode_Daily_Question_Sheet.xlsx> <Group2_Daily_Question_Sheet.xlsx>
 
+NOTE: `group1.json` is no longer produced by this converter. The committed Group 1 file is the five-day
+plan derived by `build_five_day.py` from `group1.six-day.json` (the output of this converter for the
+original 960-row sheet). `group2.json` still comes from here.
+
 Requires: openpyxl (conversion only — not a project dependency).
 """
 import json, os, re, sys
