@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '../../infra/prisma/prisma.service';
 
@@ -8,20 +8,33 @@ export interface CohortRecordingDto {
   campusCode: string;
   campusName: string;
   cohort: number;
-  recordingUrl: string | null;
-  label: string | null;
+  sessionDate: string;
+  recordingUrl: string;
+  topic: string | null;
 }
 
 @Injectable()
 export class CohortRecordingsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Get all cohort recordings, optionally filtered by campus. */
-  async findAll(campusId?: string): Promise<CohortRecordingDto[]> {
+  /** Get all cohort recordings, optionally filtered by campus and/or cohort. */
+  async findAll(campusCode?: string, cohort?: number): Promise<CohortRecordingDto[]> {
+    const where: { campusId?: string; cohort?: number } = {};
+    
+    if (campusCode) {
+      const campus = await this.prisma.campus.findUnique({ where: { code: campusCode } });
+      if (!campus) return [];
+      where.campusId = campus.id;
+    }
+    
+    if (cohort !== undefined) {
+      where.cohort = cohort;
+    }
+
     const recordings = await this.prisma.cohortRecording.findMany({
-      where: campusId ? { campusId } : undefined,
+      where,
       include: { campus: { select: { id: true, code: true, name: true } } },
-      orderBy: [{ campus: { sortOrder: 'asc' } }, { cohort: 'asc' }],
+      orderBy: [{ campus: { sortOrder: 'asc' } }, { cohort: 'asc' }, { sessionDate: 'desc' }],
     });
 
     return recordings.map((r) => ({
@@ -30,38 +43,30 @@ export class CohortRecordingsService {
       campusCode: r.campus.code,
       campusName: r.campus.name,
       cohort: r.cohort,
+      sessionDate: r.sessionDate,
       recordingUrl: r.recordingUrl,
-      label: r.label,
+      topic: r.topic,
     }));
   }
 
-  /** Get recordings for a specific campus. */
-  async findByCampus(campusCode: string): Promise<CohortRecordingDto[]> {
-    const campus = await this.prisma.campus.findUnique({ where: { code: campusCode } });
-    if (!campus) return [];
-    return this.findAll(campus.id);
-  }
+  /** Create a new session recording. */
+  async create(data: {
+    campusCode: string;
+    cohort: number;
+    sessionDate: string;
+    recordingUrl: string;
+    topic?: string;
+  }): Promise<CohortRecordingDto> {
+    const campus = await this.prisma.campus.findUnique({ where: { code: data.campusCode } });
+    if (!campus) throw new NotFoundException(`Campus ${data.campusCode} not found`);
 
-  /** Upsert a cohort recording (create or update). */
-  async upsert(
-    campusCode: string,
-    cohort: number,
-    data: { recordingUrl?: string; label?: string },
-  ): Promise<CohortRecordingDto> {
-    const campus = await this.prisma.campus.findUnique({ where: { code: campusCode } });
-    if (!campus) throw new Error(`Campus ${campusCode} not found`);
-
-    const recording = await this.prisma.cohortRecording.upsert({
-      where: { campusId_cohort: { campusId: campus.id, cohort } },
-      create: {
+    const recording = await this.prisma.cohortRecording.create({
+      data: {
         campusId: campus.id,
-        cohort,
-        recordingUrl: data.recordingUrl ?? null,
-        label: data.label ?? null,
-      },
-      update: {
-        recordingUrl: data.recordingUrl ?? null,
-        label: data.label ?? null,
+        cohort: data.cohort,
+        sessionDate: data.sessionDate,
+        recordingUrl: data.recordingUrl,
+        topic: data.topic ?? null,
       },
       include: { campus: { select: { id: true, code: true, name: true } } },
     });
@@ -72,8 +77,36 @@ export class CohortRecordingsService {
       campusCode: recording.campus.code,
       campusName: recording.campus.name,
       cohort: recording.cohort,
+      sessionDate: recording.sessionDate,
       recordingUrl: recording.recordingUrl,
-      label: recording.label,
+      topic: recording.topic,
+    };
+  }
+
+  /** Update an existing recording. */
+  async update(
+    id: string,
+    data: { recordingUrl?: string; topic?: string; sessionDate?: string },
+  ): Promise<CohortRecordingDto> {
+    const recording = await this.prisma.cohortRecording.update({
+      where: { id },
+      data: {
+        ...(data.recordingUrl !== undefined ? { recordingUrl: data.recordingUrl } : {}),
+        ...(data.topic !== undefined ? { topic: data.topic } : {}),
+        ...(data.sessionDate !== undefined ? { sessionDate: data.sessionDate } : {}),
+      },
+      include: { campus: { select: { id: true, code: true, name: true } } },
+    });
+
+    return {
+      id: recording.id,
+      campusId: recording.campusId,
+      campusCode: recording.campus.code,
+      campusName: recording.campus.name,
+      cohort: recording.cohort,
+      sessionDate: recording.sessionDate,
+      recordingUrl: recording.recordingUrl,
+      topic: recording.topic,
     };
   }
 

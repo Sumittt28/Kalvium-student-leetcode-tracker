@@ -1,12 +1,12 @@
-import { Body, Controller, Delete, Get, Param, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { IsInt, IsOptional, IsString, IsUrl, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, IsUrl, Matches, Max, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 import { Roles } from '../../common/decorators';
 import { CohortRecordingsService } from './cohort-recordings.service';
 
-class UpsertCohortRecordingDto {
+class CreateCohortRecordingDto {
   @IsString()
   campusCode!: string;
 
@@ -16,13 +16,31 @@ class UpsertCohortRecordingDto {
   @Max(10)
   cohort!: number;
 
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'sessionDate must be in YYYY-MM-DD format' })
+  sessionDate!: string;
+
+  @IsUrl()
+  recordingUrl!: string;
+
+  @IsOptional()
+  @IsString()
+  topic?: string;
+}
+
+class UpdateCohortRecordingDto {
   @IsOptional()
   @IsUrl()
   recordingUrl?: string;
 
   @IsOptional()
   @IsString()
-  label?: string;
+  topic?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'sessionDate must be in YYYY-MM-DD format' })
+  sessionDate?: string;
 }
 
 @ApiTags('Cohort Recordings')
@@ -33,27 +51,31 @@ export class CohortRecordingsController {
 
   @Get()
   @Roles('ADMIN', 'MENTOR', 'VIEWER')
-  @ApiOperation({ summary: 'List all cohort recordings, optionally filtered by campus' })
-  findAll(@Query('campusCode') campusCode?: string) {
-    if (campusCode) {
-      return this.service.findByCampus(campusCode);
-    }
-    return this.service.findAll();
+  @ApiOperation({ summary: 'List all session recordings, optionally filtered by campus and cohort' })
+  findAll(
+    @Query('campusCode') campusCode?: string,
+    @Query('cohort', new (class { transform(v: string) { return v ? parseInt(v, 10) : undefined; } })()) cohort?: number,
+  ) {
+    return this.service.findAll(campusCode, cohort);
   }
 
-  @Put()
+  @Post()
   @Roles('ADMIN', 'MENTOR')
-  @ApiOperation({ summary: 'Create or update a cohort recording' })
-  upsert(@Body() dto: UpsertCohortRecordingDto) {
-    return this.service.upsert(dto.campusCode, dto.cohort, {
-      recordingUrl: dto.recordingUrl,
-      label: dto.label,
-    });
+  @ApiOperation({ summary: 'Add a new session recording' })
+  create(@Body() dto: CreateCohortRecordingDto) {
+    return this.service.create(dto);
+  }
+
+  @Patch(':id')
+  @Roles('ADMIN', 'MENTOR')
+  @ApiOperation({ summary: 'Update a session recording' })
+  update(@Param('id') id: string, @Body() dto: UpdateCohortRecordingDto) {
+    return this.service.update(id, dto);
   }
 
   @Delete(':id')
   @Roles('ADMIN', 'MENTOR')
-  @ApiOperation({ summary: 'Delete a cohort recording' })
+  @ApiOperation({ summary: 'Delete a session recording' })
   async delete(@Param('id') id: string) {
     await this.service.delete(id);
     return { deleted: true };

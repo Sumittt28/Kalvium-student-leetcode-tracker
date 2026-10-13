@@ -478,24 +478,27 @@ model Batch {
   @@map("batches")
 }
 
-/// Session recording links per cohort within a campus. Each cohort (1, 2, 3) can have
-/// its own recording URL so students can access the right sessions as they advance.
+/// Session recording links per cohort within a campus. Multiple recordings per cohort,
+/// each with a date so students know which day's class it is.
 model CohortRecording {
   id        String  @id @default(uuid()) @db.Uuid
   campusId  String  @db.Uuid
   /// The cohort number (1, 2, or 3)
   cohort    Int
+  /// The date of the session (e.g., 2026-10-12)
+  sessionDate String
   /// The URL to the session recording (Google Drive, YouTube, etc.)
-  recordingUrl String?
-  /// Optional label for the recording (e.g., "Week 1-4 Sessions")
-  label     String?
+  recordingUrl String
+  /// Optional topic/label for the recording (e.g., "Arrays & Hashing")
+  topic     String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   campus Campus @relation(fields: [campusId], references: [id], onDelete: Cascade)
 
-  @@unique([campusId, cohort])
+  @@unique([campusId, cohort, sessionDate])
+  @@index([campusId, cohort])
   @@map("cohort_recordings")
 }
 

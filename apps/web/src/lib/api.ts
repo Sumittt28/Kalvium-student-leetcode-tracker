@@ -554,15 +554,20 @@ export const api = {
   questionBankAddEntry: (setKey: string, data: { leetcodeUrl: string; position: number; topic?: string; pattern?: string; role?: string }) =>
     apiFetch<QuestionBankSetDto>(`/question-bank/sets/${encodeURIComponent(setKey)}/entries`, { method: 'POST', body: JSON.stringify(data) }),
 
-  // Cohort Recordings
-  cohortRecordings: (campusCode?: string) =>
-    apiFetch<{ id: string; campusId: string; campusCode: string; campusName: string; cohort: number; recordingUrl: string | null; label: string | null }[]>(
-      `/cohort-recordings${campusCode ? qs({ campusCode }) : ''}`
+  // Cohort Recordings (session recordings with dates)
+  cohortRecordings: (campusCode?: string, cohort?: number) =>
+    apiFetch<{ id: string; campusId: string; campusCode: string; campusName: string; cohort: number; sessionDate: string; recordingUrl: string; topic: string | null }[]>(
+      `/cohort-recordings${qs({ campusCode, cohort })}`
     ),
 
-  upsertCohortRecording: (data: { campusCode: string; cohort: number; recordingUrl?: string; label?: string }) =>
-    apiFetch<{ id: string; campusId: string; campusCode: string; cohort: number; recordingUrl: string | null; label: string | null }>(
-      '/cohort-recordings', { method: 'PUT', body: JSON.stringify(data) }
+  createCohortRecording: (data: { campusCode: string; cohort: number; sessionDate: string; recordingUrl: string; topic?: string }) =>
+    apiFetch<{ id: string; campusId: string; campusCode: string; cohort: number; sessionDate: string; recordingUrl: string; topic: string | null }>(
+      '/cohort-recordings', { method: 'POST', body: JSON.stringify(data) }
+    ),
+
+  updateCohortRecording: (id: string, data: { recordingUrl?: string; topic?: string; sessionDate?: string }) =>
+    apiFetch<{ id: string; sessionDate: string; recordingUrl: string; topic: string | null }>(
+      `/cohort-recordings/${id}`, { method: 'PATCH', body: JSON.stringify(data) }
     ),
 
   deleteCohortRecording: (id: string) =>

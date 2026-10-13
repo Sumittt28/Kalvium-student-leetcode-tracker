@@ -131,7 +131,6 @@ export default function StudentsPage() {
     staleTime: 5 * 60_000,
   });
 
-  const [editingRecording, setEditingRecording] = useState<{ campusCode: string; cohort: number; url: string; label: string } | null>(null);
   const [showRecordings, setShowRecordings] = useState(false);
 
   const completionByStudent = new Map(
@@ -317,8 +316,6 @@ export default function StudentsPage() {
         campuses={campuses}
         showRecordings={showRecordings}
         setShowRecordings={setShowRecordings}
-        editingRecording={editingRecording}
-        setEditingRecording={setEditingRecording}
       />
 
       <Card>
@@ -711,8 +708,9 @@ type CohortRecording = {
   campusCode: string;
   campusName: string;
   cohort: number;
-  recordingUrl: string | null;
-  label: string | null;
+  sessionDate: string;
+  recordingUrl: string;
+  topic: string | null;
 };
 
 type CampusEntry = { code: string; name: string; studentCount: number };
@@ -723,64 +721,67 @@ function SessionRecordingsPanel({
   campuses,
   showRecordings,
   setShowRecordings,
-  editingRecording,
-  setEditingRecording,
 }: {
   recordings: CohortRecording[];
   campus: string | null;
   campuses: CampusEntry[];
   showRecordings: boolean;
   setShowRecordings: (show: boolean) => void;
-  editingRecording: { campusCode: string; cohort: number; url: string; label: string } | null;
-  setEditingRecording: (r: { campusCode: string; cohort: number; url: string; label: string } | null) => void;
 }) {
   const queryClient = useQueryClient();
+  const [addingTo, setAddingTo] = useState<{ campusCode: string; cohort: number } | null>(null);
+  const [newRecording, setNewRecording] = useState({ sessionDate: '', recordingUrl: '', topic: '' });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editData, setEditData] = useState({ sessionDate: '', recordingUrl: '', topic: '' });
 
-  const upsertMutation = useMutation({
-    mutationFn: (data: { campusCode: string; cohort: number; recordingUrl?: string; label?: string }) =>
-      api.upsertCohortRecording(data),
+  const createMutation = useMutation({
+    mutationFn: (data: { campusCode: string; cohort: number; sessionDate: string; recordingUrl: string; topic?: string }) =>
+      api.createCohortRecording(data),
     onSuccess: () => {
-      toast.success('Session recording saved');
+      toast.success('Recording added');
       void queryClient.invalidateQueries({ queryKey: ['cohort-recordings'] });
-      setEditingRecording(null);
+      setAddingTo(null);
+      setNewRecording({ sessionDate: '', recordingUrl: '', topic: '' });
     },
-    onError: (err: Error) => toast.error('Failed to save', { description: err.message }),
+    onError: (err: Error) => toast.error('Failed to add', { description: err.message }),
   });
 
-  // Group recordings by campus
-  const recordingsByCampus = new Map<string, CohortRecording[]>();
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { recordingUrl?: string; topic?: string; sessionDate?: string } }) =>
+      api.updateCohortRecording(id, data),
+    onSuccess: () => {
+      toast.success('Recording updated');
+      void queryClient.invalidateQueries({ queryKey: ['cohort-recordings'] });
+      setEditingId(null);
+    },
+    onError: (err: Error) => toast.error('Failed to update', { description: err.message }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.deleteCohortRecording(id),
+    onSuccess: () => {
+      toast.success('Recording deleted');
+      void queryClient.invalidateQueries({ queryKey: ['cohort-recordings'] });
+    },
+    onError: (err: Error) => toast.error('Failed to delete', { description: err.message }),
+  });
+
+  // Group recordings by campus then cohort
+  const recordingsByCampusCohort = new Map<string, CohortRecording[]>();
   for (const r of recordings) {
-    const list = recordingsByCampus.get(r.campusCode) ?? [];
+    const key = `${r.campusCode}-${r.cohort}`;
+    const list = recordingsByCampusCohort.get(key) ?? [];
     list.push(r);
-    recordingsByCampus.set(r.campusCode, list);
+    recordingsByCampusCohort.set(key, list);
   }
 
   // Which campuses to show
-  const visibleCampuses = campus
-    ? campuses.filter((c) => c.code === campus)
-    : campuses;
-
-  // Cohorts: 1, 2, 3
+  const visibleCampuses = campus ? campuses.filter((c) => c.code === campus) : campuses;
   const cohorts = [1, 2, 3];
 
-  const handleEdit = (campusCode: string, cohort: number) => {
-    const existing = recordings.find((r) => r.campusCode === campusCode && r.cohort === cohort);
-    setEditingRecording({
-      campusCode,
-      cohort,
-      url: existing?.recordingUrl ?? '',
-      label: existing?.label ?? '',
-    });
-  };
-
-  const handleSave = () => {
-    if (!editingRecording) return;
-    upsertMutation.mutate({
-      campusCode: editingRecording.campusCode,
-      cohort: editingRecording.cohort,
-      recordingUrl: editingRecording.url || undefined,
-      label: editingRecording.label || undefined,
-    });
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
   return (
@@ -792,7 +793,7 @@ function SessionRecordingsPanel({
             Session Recordings
           </span>
         }
-        description="Links to session recordings for each cohort. Share with students as they advance through belts."
+        description="Add recording links with dates. Students can see which day's class each recording is from."
         action={
           <Button variant="ghost" onClick={() => setShowRecordings(!showRecordings)}>
             {showRecordings ? 'Hide' : 'Show'}
@@ -808,76 +809,163 @@ function SessionRecordingsPanel({
             <div className="space-y-4">
               {visibleCampuses.map((c) => (
                 <div key={c.code} className="rounded-lg border border-[var(--color-border)] p-3">
-                  <h4 className="mb-2 text-sm font-semibold">{c.name}</h4>
-                  <div className="grid gap-2 sm:grid-cols-3">
+                  <h4 className="mb-3 text-sm font-semibold">{c.name}</h4>
+                  <div className="space-y-3">
                     {cohorts.map((cohort) => {
-                      const rec = recordingsByCampus.get(c.code)?.find((r) => r.cohort === cohort);
-                      const isEditing = editingRecording?.campusCode === c.code && editingRecording?.cohort === cohort;
+                      const key = `${c.code}-${cohort}`;
+                      const recs = recordingsByCampusCohort.get(key) ?? [];
+                      const isAdding = addingTo?.campusCode === c.code && addingTo?.cohort === cohort;
 
                       return (
-                        <div
-                          key={cohort}
-                          className="flex flex-col gap-2 rounded-md bg-[var(--color-surface-sunken)] p-2"
-                        >
-                          <div className="flex items-center justify-between">
+                        <div key={cohort} className="rounded-md bg-[var(--color-surface-sunken)] p-3">
+                          <div className="mb-2 flex items-center justify-between">
                             <Badge tone={cohort === 3 ? 'info' : 'brand'}>
-                              {cohort === 1 ? 'G1' : cohort === 2 ? 'G1' : 'G2'} Cohort {cohort}
+                              {cohort <= 2 ? 'G1' : 'G2'} · Cohort {cohort}
                             </Badge>
-                            <button
-                              onClick={() => handleEdit(c.code, cohort)}
-                              className="rounded p-1 text-[var(--color-fg-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-brand)]"
-                              title="Edit recording link"
+                            <Button
+                              variant="ghost"
+                              className="px-2 py-1 text-xs"
+                              onClick={() => {
+                                setAddingTo({ campusCode: c.code, cohort });
+                                setNewRecording({ sessionDate: new Date().toISOString().split('T')[0], recordingUrl: '', topic: '' });
+                              }}
                             >
-                              <Edit2 className="h-3.5 w-3.5" />
-                            </button>
+                              + Add Recording
+                            </Button>
                           </div>
 
-                          {isEditing ? (
-                            <div className="space-y-2">
-                              <input
-                                type="text"
-                                placeholder="Recording URL"
-                                value={editingRecording.url}
-                                onChange={(e) => setEditingRecording({ ...editingRecording, url: e.target.value })}
-                                className="w-full rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs"
-                              />
-                              <input
-                                type="text"
-                                placeholder="Label (optional)"
-                                value={editingRecording.label}
-                                onChange={(e) => setEditingRecording({ ...editingRecording, label: e.target.value })}
-                                className="w-full rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs"
-                              />
+                          {/* Add new recording form */}
+                          {isAdding && (
+                            <div className="mb-3 space-y-2 rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-2">
+                              <div className="grid gap-2 sm:grid-cols-3">
+                                <input
+                                  type="date"
+                                  value={newRecording.sessionDate}
+                                  onChange={(e) => setNewRecording({ ...newRecording, sessionDate: e.target.value })}
+                                  className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs"
+                                />
+                                <input
+                                  type="text"
+                                  placeholder="Topic (e.g., Arrays & Hashing)"
+                                  value={newRecording.topic}
+                                  onChange={(e) => setNewRecording({ ...newRecording, topic: e.target.value })}
+                                  className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs"
+                                />
+                                <input
+                                  type="url"
+                                  placeholder="Recording URL"
+                                  value={newRecording.recordingUrl}
+                                  onChange={(e) => setNewRecording({ ...newRecording, recordingUrl: e.target.value })}
+                                  className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs"
+                                />
+                              </div>
                               <div className="flex gap-1">
                                 <Button
                                   variant="primary"
                                   className="px-2 py-1 text-xs"
-                                  loading={upsertMutation.isPending}
-                                  onClick={handleSave}
+                                  loading={createMutation.isPending}
+                                  disabled={!newRecording.sessionDate || !newRecording.recordingUrl}
+                                  onClick={() => createMutation.mutate({
+                                    campusCode: c.code,
+                                    cohort,
+                                    sessionDate: newRecording.sessionDate,
+                                    recordingUrl: newRecording.recordingUrl,
+                                    topic: newRecording.topic || undefined,
+                                  })}
                                 >
                                   Save
                                 </Button>
-                                <Button
-                                  variant="ghost"
-                                  className="px-2 py-1 text-xs"
-                                  onClick={() => setEditingRecording(null)}
-                                >
+                                <Button variant="ghost" className="px-2 py-1 text-xs" onClick={() => setAddingTo(null)}>
                                   Cancel
                                 </Button>
                               </div>
                             </div>
-                          ) : rec?.recordingUrl ? (
-                            <a
-                              href={rec.recordingUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-xs text-[var(--color-brand)] hover:underline"
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                              {rec.label || 'View Recording'}
-                            </a>
+                          )}
+
+                          {/* List of recordings */}
+                          {recs.length === 0 ? (
+                            <p className="text-xs text-[var(--color-fg-subtle)]">No recordings yet</p>
                           ) : (
-                            <span className="text-xs text-[var(--color-fg-subtle)]">No recording set</span>
+                            <div className="space-y-1">
+                              {recs.map((rec) => (
+                                <div key={rec.id} className="flex items-center justify-between rounded bg-[var(--color-surface)] px-2 py-1">
+                                  {editingId === rec.id ? (
+                                    <div className="flex flex-1 gap-2">
+                                      <input
+                                        type="date"
+                                        value={editData.sessionDate}
+                                        onChange={(e) => setEditData({ ...editData, sessionDate: e.target.value })}
+                                        className="rounded border border-[var(--color-border)] px-1 py-0.5 text-xs"
+                                      />
+                                      <input
+                                        type="text"
+                                        value={editData.topic}
+                                        onChange={(e) => setEditData({ ...editData, topic: e.target.value })}
+                                        className="flex-1 rounded border border-[var(--color-border)] px-1 py-0.5 text-xs"
+                                        placeholder="Topic"
+                                      />
+                                      <input
+                                        type="url"
+                                        value={editData.recordingUrl}
+                                        onChange={(e) => setEditData({ ...editData, recordingUrl: e.target.value })}
+                                        className="flex-1 rounded border border-[var(--color-border)] px-1 py-0.5 text-xs"
+                                        placeholder="URL"
+                                      />
+                                      <Button
+                                        variant="primary"
+                                        className="px-1.5 py-0.5 text-xs"
+                                        loading={updateMutation.isPending}
+                                        onClick={() => updateMutation.mutate({ id: rec.id, data: editData })}
+                                      >
+                                        Save
+                                      </Button>
+                                      <Button variant="ghost" className="px-1.5 py-0.5 text-xs" onClick={() => setEditingId(null)}>
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs font-medium tabular-nums text-[var(--color-fg-muted)]">
+                                          {formatDate(rec.sessionDate)}
+                                        </span>
+                                        {rec.topic && (
+                                          <span className="text-xs text-[var(--color-fg-muted)]">· {rec.topic}</span>
+                                        )}
+                                        <a
+                                          href={rec.recordingUrl}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="inline-flex items-center gap-1 text-xs text-[var(--color-brand)] hover:underline"
+                                        >
+                                          <ExternalLink className="h-3 w-3" />
+                                          Watch
+                                        </a>
+                                      </div>
+                                      <div className="flex gap-1">
+                                        <button
+                                          onClick={() => {
+                                            setEditingId(rec.id);
+                                            setEditData({ sessionDate: rec.sessionDate, recordingUrl: rec.recordingUrl, topic: rec.topic ?? '' });
+                                          }}
+                                          className="rounded p-1 text-[var(--color-fg-muted)] hover:text-[var(--color-brand)]"
+                                        >
+                                          <Edit2 className="h-3 w-3" />
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            if (confirm('Delete this recording?')) deleteMutation.mutate(rec.id);
+                                          }}
+                                          className="rounded p-1 text-[var(--color-fg-muted)] hover:text-[var(--color-danger)]"
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </button>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
                           )}
                         </div>
                       );
