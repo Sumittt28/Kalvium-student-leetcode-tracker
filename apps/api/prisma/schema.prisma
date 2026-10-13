@@ -375,6 +375,7 @@ model Campus {
   /// not a per-program label. See the schema section banner above `InfosysEnrollment`.
   infosysEnrollments   InfosysEnrollment[]
   infosysDailyStatuses InfosysDailyStatus[]
+  cohortRecordings     CohortRecording[]
 
   @@index([status])
   @@index([sortOrder])
@@ -475,6 +476,27 @@ model Batch {
   @@index([status])
   @@index([campusId, status, sortOrder])
   @@map("batches")
+}
+
+/// Session recording links per cohort within a campus. Each cohort (1, 2, 3) can have
+/// its own recording URL so students can access the right sessions as they advance.
+model CohortRecording {
+  id        String  @id @default(uuid()) @db.Uuid
+  campusId  String  @db.Uuid
+  /// The cohort number (1, 2, or 3)
+  cohort    Int
+  /// The URL to the session recording (Google Drive, YouTube, etc.)
+  recordingUrl String?
+  /// Optional label for the recording (e.g., "Week 1-4 Sessions")
+  label     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  campus Campus @relation(fields: [campusId], references: [id], onDelete: Cascade)
+
+  @@unique([campusId, cohort])
+  @@map("cohort_recordings")
 }
 
 model Squad {

@@ -29,6 +29,7 @@ const SORTABLE = [
   'longestStreak',
   'totalSolved',
   'totalScore',
+  'batchCohort', // Special: sorts by batch name then cohort
 ] as const;
 
 type StudentWithRelations = Student & {
@@ -75,11 +76,20 @@ export class StudentsService {
     const where = this.buildWhere(query, scope);
     const sortBy = safeSortField(query.sortBy, SORTABLE, 'name');
 
+    // Special compound sort for batch+cohort grouping
+    const orderBy = sortBy === 'batchCohort'
+      ? [
+          { batch: { name: query.sortOrder } },
+          { cohort: query.sortOrder },
+          { name: 'asc' as const },
+        ]
+      : { [sortBy]: query.sortOrder };
+
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.student.findMany({
         where,
         include: STUDENT_INCLUDE,
-        orderBy: { [sortBy]: query.sortOrder },
+        orderBy,
         skip: query.skip,
         take: query.take,
       }),

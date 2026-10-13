@@ -27,6 +27,7 @@ import { CampusesHttpModule } from './modules/campuses/campuses-http.module';
 import { BaselineTestsModule } from './modules/baseline-tests/baseline-tests.module';
 import { AssignmentsModule } from './modules/assignments/assignments.module';
 import { QuestionBankModule } from './modules/question-bank/question-bank.module';
+import { CohortRecordingsModule } from './modules/cohort-recordings/cohort-recordings.module';
 import { ScoringModule } from './modules/scoring/scoring.module';
 import { SyncModule } from './modules/sync/sync.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
@@ -86,6 +87,7 @@ class CoreModule {}
     CampusesHttpModule,
     AssignmentsModule,
     QuestionBankModule,
+    CohortRecordingsModule,
     BaselineTestsModule,
     ScoringModule,
     SyncModule,

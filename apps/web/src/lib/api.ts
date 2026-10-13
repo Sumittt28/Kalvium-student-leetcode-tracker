@@ -554,6 +554,20 @@ export const api = {
   questionBankAddEntry: (setKey: string, data: { leetcodeUrl: string; position: number; topic?: string; pattern?: string; role?: string }) =>
     apiFetch<QuestionBankSetDto>(`/question-bank/sets/${encodeURIComponent(setKey)}/entries`, { method: 'POST', body: JSON.stringify(data) }),
 
+  // Cohort Recordings
+  cohortRecordings: (campusCode?: string) =>
+    apiFetch<{ id: string; campusId: string; campusCode: string; campusName: string; cohort: number; recordingUrl: string | null; label: string | null }[]>(
+      `/cohort-recordings${campusCode ? qs({ campusCode }) : ''}`
+    ),
+
+  upsertCohortRecording: (data: { campusCode: string; cohort: number; recordingUrl?: string; label?: string }) =>
+    apiFetch<{ id: string; campusId: string; campusCode: string; cohort: number; recordingUrl: string | null; label: string | null }>(
+      '/cohort-recordings', { method: 'PUT', body: JSON.stringify(data) }
+    ),
+
+  deleteCohortRecording: (id: string) =>
+    apiFetch<{ deleted: boolean }>(`/cohort-recordings/${id}`, { method: 'DELETE' }),
+
   infosysDashboard: () => apiFetch<InfosysDashboardSummary>('/infosys/dashboard'),
 
   infosysStudents: () => apiFetch<InfosysStudentAnalysis[]>('/infosys/students'),

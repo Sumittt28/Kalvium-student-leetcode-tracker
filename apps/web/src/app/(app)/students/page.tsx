@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Upload, X } from 'lucide-react';
+import { Download, Edit2, ExternalLink, Upload, Video, X } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   SYNC_STATUS_LABELS,
@@ -56,6 +56,7 @@ export default function StudentsPage() {
   const [squadId, setSquadId] = useState(() => searchParams.get('squadId') ?? '');
   const [syncStatus, setSyncStatus] = useState(() => searchParams.get('syncStatus') ?? '');
   const [cohort, setCohort] = useState(() => searchParams.get('cohort') ?? '');
+  const [sortBy, setSortBy] = useState(() => searchParams.get('sortBy') ?? 'batchCohort'); // Default to batch+cohort grouping
   /** '' = current students only (the default), 'all' = plus archived, 'ARCHIVED' = only. */
   const [archiveScope, setArchiveScope] = useState(() => searchParams.get('archiveScope') ?? '');
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
@@ -92,7 +93,7 @@ export default function StudentsPage() {
   const students = useQuery({
     queryKey: [
       'students',
-      { page, search, squadId, syncStatus, campus, batch, cohort, archiveScope, squadNumber },
+      { page, search, squadId, syncStatus, campus, batch, cohort, archiveScope, squadNumber, sortBy },
     ],
     queryFn: () =>
       api.students({
@@ -101,7 +102,7 @@ export default function StudentsPage() {
         search,
         squadId,
         syncStatus,
-        sortBy: 'name',
+        sortBy,
         campus: campus ?? undefined,
         batch: batch ?? undefined,
         cohort: cohort || undefined,
@@ -122,6 +123,16 @@ export default function StudentsPage() {
       api.mentorDashboard(todayKey(), undefined, campus ?? undefined, batch ?? undefined),
     staleTime: 60_000,
   });
+
+  // Session recordings per cohort
+  const recordings = useQuery({
+    queryKey: ['cohort-recordings', campus],
+    queryFn: () => api.cohortRecordings(campus ?? undefined),
+    staleTime: 5 * 60_000,
+  });
+
+  const [editingRecording, setEditingRecording] = useState<{ campusCode: string; cohort: number; url: string; label: string } | null>(null);
+  const [showRecordings, setShowRecordings] = useState(false);
 
   const completionByStudent = new Map(
     (today.data?.buckets ?? [])
@@ -299,6 +310,17 @@ export default function StudentsPage() {
         </Card>
       ) : null}
 
+      {/* Session Recordings Panel */}
+      <SessionRecordingsPanel
+        recordings={recordings.data ?? []}
+        campus={campus}
+        campuses={campuses}
+        showRecordings={showRecordings}
+        setShowRecordings={setShowRecordings}
+        editingRecording={editingRecording}
+        setEditingRecording={setEditingRecording}
+      />
+
       <Card>
         <div className="flex flex-wrap gap-2 border-b border-[var(--color-border)] p-3">
           <input
@@ -421,6 +443,22 @@ export default function StudentsPage() {
                 {label}
               </option>
             ))}
+          </select>
+
+          <select
+            value={sortBy}
+            onChange={(event) => {
+              setSortBy(event.target.value);
+              setPage(1);
+            }}
+            aria-label="Sort by"
+            className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm outline-none"
+          >
+            <option value="batchCohort">Sort: Batch & Cohort</option>
+            <option value="name">Sort: Name</option>
+            <option value="totalSolved">Sort: Total Solved</option>
+            <option value="currentStreak">Sort: Current Streak</option>
+            <option value="createdAt">Sort: Date Added</option>
           </select>
         </div>
 
@@ -660,5 +698,197 @@ export default function StudentsPage() {
         onClose={() => setEditingProfile(null)}
       />
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Session Recordings Panel
+// ─────────────────────────────────────────────────────────────────────────────
+
+type CohortRecording = {
+  id: string;
+  campusId: string;
+  campusCode: string;
+  campusName: string;
+  cohort: number;
+  recordingUrl: string | null;
+  label: string | null;
+};
+
+type CampusEntry = { code: string; name: string; studentCount: number };
+
+function SessionRecordingsPanel({
+  recordings,
+  campus,
+  campuses,
+  showRecordings,
+  setShowRecordings,
+  editingRecording,
+  setEditingRecording,
+}: {
+  recordings: CohortRecording[];
+  campus: string | null;
+  campuses: CampusEntry[];
+  showRecordings: boolean;
+  setShowRecordings: (show: boolean) => void;
+  editingRecording: { campusCode: string; cohort: number; url: string; label: string } | null;
+  setEditingRecording: (r: { campusCode: string; cohort: number; url: string; label: string } | null) => void;
+}) {
+  const queryClient = useQueryClient();
+
+  const upsertMutation = useMutation({
+    mutationFn: (data: { campusCode: string; cohort: number; recordingUrl?: string; label?: string }) =>
+      api.upsertCohortRecording(data),
+    onSuccess: () => {
+      toast.success('Session recording saved');
+      void queryClient.invalidateQueries({ queryKey: ['cohort-recordings'] });
+      setEditingRecording(null);
+    },
+    onError: (err: Error) => toast.error('Failed to save', { description: err.message }),
+  });
+
+  // Group recordings by campus
+  const recordingsByCampus = new Map<string, CohortRecording[]>();
+  for (const r of recordings) {
+    const list = recordingsByCampus.get(r.campusCode) ?? [];
+    list.push(r);
+    recordingsByCampus.set(r.campusCode, list);
+  }
+
+  // Which campuses to show
+  const visibleCampuses = campus
+    ? campuses.filter((c) => c.code === campus)
+    : campuses;
+
+  // Cohorts: 1, 2, 3
+  const cohorts = [1, 2, 3];
+
+  const handleEdit = (campusCode: string, cohort: number) => {
+    const existing = recordings.find((r) => r.campusCode === campusCode && r.cohort === cohort);
+    setEditingRecording({
+      campusCode,
+      cohort,
+      url: existing?.recordingUrl ?? '',
+      label: existing?.label ?? '',
+    });
+  };
+
+  const handleSave = () => {
+    if (!editingRecording) return;
+    upsertMutation.mutate({
+      campusCode: editingRecording.campusCode,
+      cohort: editingRecording.cohort,
+      recordingUrl: editingRecording.url || undefined,
+      label: editingRecording.label || undefined,
+    });
+  };
+
+  return (
+    <Card>
+      <CardHeader
+        title={
+          <span className="flex items-center gap-2">
+            <Video className="h-4 w-4" />
+            Session Recordings
+          </span>
+        }
+        description="Links to session recordings for each cohort. Share with students as they advance through belts."
+        action={
+          <Button variant="ghost" onClick={() => setShowRecordings(!showRecordings)}>
+            {showRecordings ? 'Hide' : 'Show'}
+          </Button>
+        }
+      />
+
+      {showRecordings && (
+        <div className="p-4">
+          {visibleCampuses.length === 0 ? (
+            <p className="text-sm text-[var(--color-fg-muted)]">Select a campus to manage recordings.</p>
+          ) : (
+            <div className="space-y-4">
+              {visibleCampuses.map((c) => (
+                <div key={c.code} className="rounded-lg border border-[var(--color-border)] p-3">
+                  <h4 className="mb-2 text-sm font-semibold">{c.name}</h4>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {cohorts.map((cohort) => {
+                      const rec = recordingsByCampus.get(c.code)?.find((r) => r.cohort === cohort);
+                      const isEditing = editingRecording?.campusCode === c.code && editingRecording?.cohort === cohort;
+
+                      return (
+                        <div
+                          key={cohort}
+                          className="flex flex-col gap-2 rounded-md bg-[var(--color-surface-sunken)] p-2"
+                        >
+                          <div className="flex items-center justify-between">
+                            <Badge tone={cohort === 3 ? 'info' : 'brand'}>
+                              {cohort === 1 ? 'G1' : cohort === 2 ? 'G1' : 'G2'} Cohort {cohort}
+                            </Badge>
+                            <button
+                              onClick={() => handleEdit(c.code, cohort)}
+                              className="rounded p-1 text-[var(--color-fg-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-brand)]"
+                              title="Edit recording link"
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+
+                          {isEditing ? (
+                            <div className="space-y-2">
+                              <input
+                                type="text"
+                                placeholder="Recording URL"
+                                value={editingRecording.url}
+                                onChange={(e) => setEditingRecording({ ...editingRecording, url: e.target.value })}
+                                className="w-full rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs"
+                              />
+                              <input
+                                type="text"
+                                placeholder="Label (optional)"
+                                value={editingRecording.label}
+                                onChange={(e) => setEditingRecording({ ...editingRecording, label: e.target.value })}
+                                className="w-full rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs"
+                              />
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="primary"
+                                  className="px-2 py-1 text-xs"
+                                  loading={upsertMutation.isPending}
+                                  onClick={handleSave}
+                                >
+                                  Save
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  className="px-2 py-1 text-xs"
+                                  onClick={() => setEditingRecording(null)}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          ) : rec?.recordingUrl ? (
+                            <a
+                              href={rec.recordingUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-xs text-[var(--color-brand)] hover:underline"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              {rec.label || 'View Recording'}
+                            </a>
+                          ) : (
+                            <span className="text-xs text-[var(--color-fg-subtle)]">No recording set</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
   );
 }
