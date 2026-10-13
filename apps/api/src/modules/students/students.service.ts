@@ -78,10 +78,12 @@ export class StudentsService {
 
     // Special compound sort for batch+cohort grouping
     // Always use ascending order for batch/cohort so G1 < G2 and cohort 1 < 2 < 3
+    // Prisma sorts nulls first by default, so we sort by batchId presence first
     const orderBy = sortBy === 'batchCohort'
       ? [
+          { batchId: { sort: 'desc' as const, nulls: 'last' as const } },
           { batch: { name: 'asc' as const } },
-          { cohort: 'asc' as const },
+          { cohort: { sort: 'asc' as const, nulls: 'last' as const } },
           { name: 'asc' as const },
         ]
       : { [sortBy]: query.sortOrder };
