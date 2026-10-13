@@ -77,10 +77,11 @@ export class StudentsService {
     const sortBy = safeSortField(query.sortBy, SORTABLE, 'name');
 
     // Special compound sort for batch+cohort grouping
+    // Always use ascending order for batch/cohort so G1 < G2 and cohort 1 < 2 < 3
     const orderBy = sortBy === 'batchCohort'
       ? [
-          { batch: { name: query.sortOrder } },
-          { cohort: query.sortOrder },
+          { batch: { name: 'asc' as const } },
+          { cohort: 'asc' as const },
           { name: 'asc' as const },
         ]
       : { [sortBy]: query.sortOrder };
