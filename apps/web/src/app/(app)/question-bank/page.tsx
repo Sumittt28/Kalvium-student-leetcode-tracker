@@ -14,10 +14,10 @@
  */
 
 import Link from 'next/link';
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, BookOpen, ChevronLeft, ChevronRight, ExternalLink, Search, X } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowRight, BookOpen, ChevronLeft, ChevronRight, Edit2, ExternalLink, Plus, Search, Trash2, X } from 'lucide-react';
 import {
   GROUP_1_PRACTICE_DAYS_PER_WEEK,
   QUESTION_BANK_GROUPS,
@@ -38,11 +38,13 @@ import {
   DifficultyBadge,
   EmptyState,
   ErrorState,
+  Modal,
   Skeleton,
   TableShell,
   Td,
   Th,
 } from '@/components/ui';
+import { toast } from 'sonner';
 
 const PAGE_SIZE = 12;
 
@@ -92,6 +94,11 @@ function QuestionBank() {
 
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [page, setPage] = useState(1);
+  const [editState, setEditState] = useState<EditState | null>(null);
+
+  // Only ADMIN and MENTOR can edit questions
+  const me = useQuery({ queryKey: ['me'], queryFn: api.me });
+  const canEdit = me.data?.role === 'ADMIN' || me.data?.role === 'MENTOR';
 
   // Switching group clears everything: filters from one group mean nothing in the other.
   useEffect(() => {
@@ -220,7 +227,13 @@ function QuestionBank() {
       ) : (
         <div className={cn('space-y-4', sets.isFetching && 'opacity-70')}>
           {sets.data.items.map((set) => (
-            <SetCard key={set.setKey} set={set} />
+            <SetCard
+              key={set.setKey}
+              set={set}
+              canEdit={canEdit}
+              onEdit={setEditState}
+              onRefresh={() => void sets.refetch()}
+            />
           ))}
           <div className="flex items-center justify-between text-xs text-[var(--color-fg-muted)]">
             <span>
@@ -238,6 +251,12 @@ function QuestionBank() {
           </div>
         </div>
       )}
+
+      <EditQuestionModal
+        editState={editState}
+        onClose={() => setEditState(null)}
+        onSuccess={() => void sets.refetch()}
+      />
     </div>
   );
 }
@@ -342,10 +361,65 @@ function setHeading(set: QuestionBankSetDto): string {
     : `Week ${set.week} · ${set.weekday} · Day ${set.day}`;
 }
 
-function SetCard({ set }: { set: QuestionBankSetDto }) {
+interface EditState {
+  question: QuestionBankQuestionDto;
+  setKey: string;
+  group: QuestionBankGroup;
+}
+
+function SetCard({ set, onEdit, onRefresh, canEdit }: {
+  set: QuestionBankSetDto;
+  onEdit: (state: EditState) => void;
+  onRefresh: () => void;
+  canEdit: boolean;
+}) {
+  const queryClient = useQueryClient();
   const group = set.group;
   const subtitle = group === 'GROUP_1' ? set.dayFocus : set.dailyTheme;
   const anyMatched = set.questions.some((q) => q.matched);
+
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addUrl, setAddUrl] = useState('');
+  const [addPosition, setAddPosition] = useState(set.questions.length + 1);
+  const [addTopic, setAddTopic] = useState('');
+  const [addPattern, setAddPattern] = useState('');
+  const [addRole, setAddRole] = useState('');
+
+  const deleteMutation = useMutation({
+    mutationFn: (entryId: string) => api.questionBankDeleteEntry(entryId),
+    onSuccess: () => {
+      toast.success('Question removed');
+      void queryClient.invalidateQueries({ queryKey: ['question-bank-sets'] });
+      onRefresh();
+    },
+    onError: (err: Error) => toast.error('Failed to remove question', { description: err.message }),
+  });
+
+  const addMutation = useMutation({
+    mutationFn: () => api.questionBankAddEntry(set.setKey, {
+      leetcodeUrl: addUrl,
+      position: addPosition,
+      ...(group === 'GROUP_1' ? { topic: addTopic || undefined, pattern: addPattern || undefined } : { role: addRole || undefined }),
+    }),
+    onSuccess: () => {
+      toast.success('Question added');
+      setShowAddForm(false);
+      setAddUrl('');
+      void queryClient.invalidateQueries({ queryKey: ['question-bank-sets'] });
+      onRefresh();
+    },
+    onError: (err: Error) => toast.error('Failed to add question', { description: err.message }),
+  });
+
+  const handleDelete = (q: QuestionBankQuestionDto) => {
+    if (confirm(`Remove Q${q.position} "${q.title}" from ${set.setKey}?`)) {
+      deleteMutation.mutate(q.id);
+    }
+  };
+
+  const usedPositions = new Set(set.questions.map((q) => q.position));
+  const nextAvailable = Array.from({ length: 10 }, (_, i) => i + 1).find((p) => !usedPositions.has(p)) ?? set.questions.length + 1;
+
   return (
     <Card className={cn('border-l-4', GROUP_ACCENT[group])}>
       <CardHeader
@@ -357,18 +431,15 @@ function SetCard({ set }: { set: QuestionBankSetDto }) {
         }
         description={subtitle}
         action={
-          // Hands the four questions to the existing Assignments form. That form still asks
-          // for the campus and batch explicitly; nothing is created from here.
           <Link
             href={`/assignments?fromBank=${encodeURIComponent(set.setKey)}`}
             className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-brand)] px-3 py-1.5 text-xs font-medium text-[var(--color-brand-fg)] hover:opacity-90"
           >
-            Use these 4 questions <ArrowRight className="h-3.5 w-3.5" />
+            Use these {set.questions.length} questions <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         }
       />
       <TableShell fixed>
-        {/* Fixed widths so every day's table lines up with the one above it. */}
         <colgroup>
           <col className="w-12" />
           <col className="w-24" />
@@ -376,12 +447,13 @@ function SetCard({ set }: { set: QuestionBankSetDto }) {
           <col className="w-28" />
           {group === 'GROUP_1' ? (
             <>
+              <col className="w-44" />
               <col className="w-52" />
-              <col className="w-60" />
             </>
           ) : (
-            <col className="w-32" />
+            <col className="w-28" />
           )}
+          {canEdit && <col className="w-24" />}
         </colgroup>
         <thead>
           <tr>
@@ -397,14 +469,86 @@ function SetCard({ set }: { set: QuestionBankSetDto }) {
             ) : (
               <Th>Role</Th>
             )}
+            {canEdit && <Th>Actions</Th>}
           </tr>
         </thead>
         <tbody>
           {set.questions.map((q) => (
-            <QuestionRow key={q.position} q={q} group={group} highlight={anyMatched && q.matched} />
+            <QuestionRow
+              key={q.position}
+              q={q}
+              group={group}
+              highlight={anyMatched && q.matched}
+              canEdit={canEdit}
+              onEdit={() => onEdit({ question: q, setKey: set.setKey, group })}
+              onDelete={() => handleDelete(q)}
+              isDeleting={deleteMutation.isPending}
+            />
           ))}
         </tbody>
       </TableShell>
+
+      {canEdit && (
+        <div className="border-t border-[var(--color-border)] p-3">
+          {!showAddForm ? (
+            <Button variant="ghost" onClick={() => { setAddPosition(nextAvailable); setShowAddForm(true); }}>
+              <Plus className="h-3.5 w-3.5" /> Add question
+            </Button>
+          ) : (
+            <div className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="sm:col-span-2">
+                  <label className={labelClass}>LeetCode URL</label>
+                  <input
+                    className={cn(selectClass, 'mt-1 w-full')}
+                    placeholder="https://leetcode.com/problems/two-sum/"
+                    value={addUrl}
+                    onChange={(e) => setAddUrl(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Position</label>
+                  <input
+                    type="number" min={1} max={10}
+                    className={cn(selectClass, 'mt-1 w-full')}
+                    value={addPosition}
+                    onChange={(e) => setAddPosition(Number(e.target.value))}
+                  />
+                </div>
+                {group === 'GROUP_1' ? (
+                  <>
+                    <div>
+                      <label className={labelClass}>Topic</label>
+                      <input className={cn(selectClass, 'mt-1 w-full')} value={addTopic} onChange={(e) => setAddTopic(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Pattern</label>
+                      <input className={cn(selectClass, 'mt-1 w-full')} value={addPattern} onChange={(e) => setAddPattern(e.target.value)} />
+                    </div>
+                  </>
+                ) : (
+                  <div>
+                    <label className={labelClass}>Role</label>
+                    <select className={cn(selectClass, 'mt-1 w-full')} value={addRole} onChange={(e) => setAddRole(e.target.value)}>
+                      <option value="">Select...</option>
+                      <option value="Warm-up">Warm-up</option>
+                      <option value="Core">Core</option>
+                      <option value="Stretch">Stretch</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button variant="primary" loading={addMutation.isPending} onClick={() => addMutation.mutate()} disabled={!addUrl}>
+                  Add Question
+                </Button>
+                <Button variant="ghost" onClick={() => setShowAddForm(false)}>Cancel</Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {group === 'GROUP_1' && set.questions[0]?.usage ? (
         <p className="border-t border-[var(--color-border)] px-5 py-2 text-[11px] text-[var(--color-fg-subtle)]">
           Source reference: {set.questions[0].usage.replace(/ Q1$/, '')}
@@ -414,7 +558,17 @@ function SetCard({ set }: { set: QuestionBankSetDto }) {
   );
 }
 
-function QuestionRow({ q, group, highlight }: { q: QuestionBankQuestionDto; group: QuestionBankGroup; highlight: boolean }) {
+function QuestionRow({
+  q, group, highlight, canEdit, onEdit, onDelete, isDeleting,
+}: {
+  q: QuestionBankQuestionDto;
+  group: QuestionBankGroup;
+  highlight: boolean;
+  canEdit: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+  isDeleting: boolean;
+}) {
   return (
     <tr className={cn(highlight && 'bg-[var(--color-brand-soft)]')}>
       <Td className="font-mono text-xs">Q{q.position}</Td>
@@ -438,6 +592,142 @@ function QuestionRow({ q, group, highlight }: { q: QuestionBankQuestionDto; grou
           <Badge tone={q.role === 'Stretch' ? 'danger' : q.role === 'Core' ? 'info' : 'success'}>{q.role}</Badge>
         </Td>
       )}
+      {canEdit && (
+        <Td>
+          <div className="flex gap-1">
+            <button
+              onClick={onEdit}
+              className="rounded p-1 text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-brand)]"
+              title="Edit question"
+            >
+              <Edit2 className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={onDelete}
+              disabled={isDeleting}
+              className="rounded p-1 text-[var(--color-fg-muted)] hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger)] disabled:opacity-50"
+              title="Remove question"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </Td>
+      )}
     </tr>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Edit Question Modal
+// ─────────────────────────────────────────────────────────────────────────────
+
+function EditQuestionModal({
+  editState,
+  onClose,
+  onSuccess,
+}: {
+  editState: EditState | null;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [leetcodeUrl, setLeetcodeUrl] = useState('');
+  const [topic, setTopic] = useState('');
+  const [pattern, setPattern] = useState('');
+  const [role, setRole] = useState('');
+
+  useEffect(() => {
+    if (editState) {
+      setLeetcodeUrl('');
+      setTopic(editState.question.topic ?? '');
+      setPattern(editState.question.pattern ?? '');
+      setRole(editState.question.role ?? '');
+    }
+  }, [editState]);
+
+  const mutation = useMutation({
+    mutationFn: () => {
+      if (!editState) throw new Error('No question selected');
+      return api.questionBankUpdateEntry(editState.question.id, {
+        ...(leetcodeUrl ? { leetcodeUrl } : {}),
+        ...(editState.group === 'GROUP_1' ? { topic, pattern } : { role }),
+      });
+    },
+    onSuccess: () => {
+      toast.success('Question updated');
+      void queryClient.invalidateQueries({ queryKey: ['question-bank-sets'] });
+      onSuccess();
+      onClose();
+    },
+    onError: (err: Error) => toast.error('Failed to update question', { description: err.message }),
+  });
+
+  if (!editState) return null;
+
+  const { question: q, group } = editState;
+  const hasChanges = leetcodeUrl || topic !== (q.topic ?? '') || pattern !== (q.pattern ?? '') || role !== (q.role ?? '');
+
+  return (
+    <Modal open={!!editState} onClose={onClose} title={`Edit Q${q.position}: ${q.title}`}>
+      <div className="space-y-4 p-5">
+        <div className="rounded-lg bg-[var(--color-surface-sunken)] p-3 text-sm">
+          <p className="font-medium">Current: #{q.leetcodeNumber} {q.title}</p>
+          <p className="text-xs text-[var(--color-fg-muted)]">{q.url}</p>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-sm font-medium">Replace with different LeetCode problem</label>
+            <input
+              className={cn(selectClass, 'mt-1 w-full')}
+              placeholder="https://leetcode.com/problems/another-problem/ (leave empty to keep current)"
+              value={leetcodeUrl}
+              onChange={(e) => setLeetcodeUrl(e.target.value)}
+            />
+            <p className="mt-1 text-xs text-[var(--color-fg-subtle)]">
+              Leave empty to keep the current problem and only update metadata below.
+            </p>
+          </div>
+
+          {group === 'GROUP_1' ? (
+            <>
+              <div>
+                <label className="text-sm font-medium">Topic</label>
+                <input
+                  className={cn(selectClass, 'mt-1 w-full')}
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Pattern</label>
+                <input
+                  className={cn(selectClass, 'mt-1 w-full')}
+                  value={pattern}
+                  onChange={(e) => setPattern(e.target.value)}
+                />
+              </div>
+            </>
+          ) : (
+            <div>
+              <label className="text-sm font-medium">Role</label>
+              <select className={cn(selectClass, 'mt-1 w-full')} value={role} onChange={(e) => setRole(e.target.value)}>
+                <option value="">None</option>
+                <option value="Warm-up">Warm-up</option>
+                <option value="Core">Core</option>
+                <option value="Stretch">Stretch</option>
+              </select>
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2">
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="primary" loading={mutation.isPending} disabled={!hasChanges} onClick={() => mutation.mutate()}>
+            Save Changes
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }

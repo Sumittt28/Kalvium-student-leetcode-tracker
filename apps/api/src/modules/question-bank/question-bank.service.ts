@@ -12,7 +12,7 @@
  * its four questions together.
  */
 
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import type {
   QuestionBankFiltersResponse,
@@ -22,7 +22,7 @@ import type {
 } from '@dsa/shared';
 
 import { PrismaService } from '../../infra/prisma/prisma.service';
-import type { QuestionBankSetsQueryDto } from './dto/question-bank.dto';
+import type { AddQuestionBankEntryDto, QuestionBankSetsQueryDto, UpdateQuestionBankEntryDto } from './dto/question-bank.dto';
 
 const ENTRY_INCLUDE = { problem: { select: { id: true, titleSlug: true, url: true } } } as const;
 type EntryRow = Prisma.QuestionBankEntryGetPayload<{ include: typeof ENTRY_INCLUDE }>;
@@ -162,6 +162,145 @@ export class QuestionBankService {
       totalPages: Math.ceil(total / query.pageSize),
     };
   }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Write operations — allows adjusting a day's questions when a session
+  // doesn't cover all planned topics.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /** Update a single question: replace the problem, or edit topic/pattern/role. */
+  async updateEntry(entryId: string, dto: UpdateQuestionBankEntryDto): Promise<QuestionBankSetDto> {
+    const entry = await this.prisma.questionBankEntry.findUnique({ where: { id: entryId } });
+    if (!entry) throw new NotFoundException(`Question bank entry "${entryId}" not found.`);
+
+    const updates: Record<string, unknown> = {};
+
+    // If a new LeetCode URL is provided, resolve or create the problem.
+    if (dto.leetcodeUrl) {
+      const slug = extractSlug(dto.leetcodeUrl);
+      if (!slug) throw new BadRequestException('Invalid LeetCode URL. Expected format: https://leetcode.com/problems/<slug>/');
+
+      let problem = await this.prisma.problem.findUnique({ where: { titleSlug: slug } });
+      if (!problem) {
+        // Try to fetch from LeetCode and create
+        problem = await this.fetchAndCreateProblem(slug);
+      }
+
+      updates.problemId = problem.id;
+      updates.leetcodeNumber = problem.questionFrontendId ? parseInt(problem.questionFrontendId, 10) : 0;
+      updates.sourceTitle = problem.title;
+      updates.sourceDifficulty = problem.difficulty;
+    }
+
+    if (dto.topic !== undefined) updates.topic = dto.topic || null;
+    if (dto.pattern !== undefined) updates.pattern = dto.pattern || null;
+    if (dto.role !== undefined) updates.role = dto.role || null;
+
+    if (Object.keys(updates).length > 0) {
+      await this.prisma.questionBankEntry.update({ where: { id: entryId }, data: updates });
+    }
+
+    return this.set(entry.setKey);
+  }
+
+  /** Delete a question from a set. */
+  async deleteEntry(entryId: string): Promise<{ setKey: string; deleted: boolean }> {
+    const entry = await this.prisma.questionBankEntry.findUnique({ where: { id: entryId } });
+    if (!entry) throw new NotFoundException(`Question bank entry "${entryId}" not found.`);
+
+    await this.prisma.questionBankEntry.delete({ where: { id: entryId } });
+    return { setKey: entry.setKey, deleted: true };
+  }
+
+  /** Add a new question to a set. */
+  async addEntry(setKey: string, dto: AddQuestionBankEntryDto): Promise<QuestionBankSetDto> {
+    // Check the set exists and get its metadata
+    const existing = await this.prisma.questionBankEntry.findFirst({
+      where: { setKey },
+      select: { group: true, belt: true, week: true, day: true, weekday: true, dailyTheme: true, dayFocus: true },
+    });
+    if (!existing) throw new NotFoundException(`No question-bank day "${setKey}".`);
+
+    // Check position is not taken
+    const positionTaken = await this.prisma.questionBankEntry.findUnique({
+      where: { setKey_position: { setKey, position: dto.position } },
+    });
+    if (positionTaken) throw new BadRequestException(`Position ${dto.position} is already taken in ${setKey}.`);
+
+    // Resolve the problem
+    const slug = extractSlug(dto.leetcodeUrl);
+    if (!slug) throw new BadRequestException('Invalid LeetCode URL. Expected format: https://leetcode.com/problems/<slug>/');
+
+    let problem = await this.prisma.problem.findUnique({ where: { titleSlug: slug } });
+    if (!problem) {
+      problem = await this.fetchAndCreateProblem(slug);
+    }
+
+    await this.prisma.questionBankEntry.create({
+      data: {
+        group: existing.group,
+        setKey,
+        position: dto.position,
+        belt: existing.belt,
+        week: existing.week,
+        day: existing.day,
+        weekday: existing.weekday,
+        problemId: problem.id,
+        leetcodeNumber: problem.questionFrontendId ? parseInt(problem.questionFrontendId, 10) : 0,
+        sourceTitle: problem.title,
+        sourceDifficulty: problem.difficulty,
+        topic: dto.topic ?? null,
+        pattern: dto.pattern ?? null,
+        dailyTheme: existing.dailyTheme,
+        dayFocus: existing.dayFocus,
+        role: dto.role ?? null,
+        sourceRow: 0, // Manual addition, no source row
+      },
+    });
+
+    return this.set(setKey);
+  }
+
+  /** Fetch problem metadata from LeetCode and create it in our DB. */
+  private async fetchAndCreateProblem(slug: string) {
+    const query = `query q($slug: String!) {
+      question(titleSlug: $slug) {
+        questionId questionFrontendId title titleSlug difficulty
+        topicTags { slug }
+      }
+    }`;
+
+    let data: { question: { questionId: string; questionFrontendId: string; title: string; titleSlug: string; difficulty: string; topicTags: { slug: string }[] } | null };
+    try {
+      const res = await fetch('https://leetcode.com/graphql', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, variables: { slug } }),
+      });
+      const json = (await res.json()) as { data: typeof data };
+      data = json.data;
+    } catch {
+      throw new BadRequestException(`Failed to fetch problem "${slug}" from LeetCode.`);
+    }
+
+    if (!data?.question) {
+      throw new NotFoundException(`Problem "${slug}" not found on LeetCode.`);
+    }
+
+    const q = data.question;
+    return this.prisma.problem.create({
+      data: {
+        titleSlug: q.titleSlug,
+        title: q.title,
+        questionId: q.questionId,
+        questionFrontendId: q.questionFrontendId,
+        difficulty: q.difficulty.toUpperCase() as 'EASY' | 'MEDIUM' | 'HARD',
+        topicTags: q.topicTags.map((t) => t.slug),
+        url: `https://leetcode.com/problems/${q.titleSlug}/`,
+        metadataFetchedAt: new Date(),
+      },
+    });
+  }
 }
 
 function toSet(entries: EntryRow[], matchedIds: Set<string>, filtered: boolean): QuestionBankSetDto {
@@ -177,6 +316,7 @@ function toSet(entries: EntryRow[], matchedIds: Set<string>, filtered: boolean):
     dayFocus: head.dayFocus,
     // `position` ordering is enforced by the query and by (setKey, position) uniqueness.
     questions: entries.map((e) => ({
+      id: e.id,
       position: e.position,
       leetcodeNumber: e.leetcodeNumber,
       title: e.sourceTitle,
@@ -193,4 +333,10 @@ function toSet(entries: EntryRow[], matchedIds: Set<string>, filtered: boolean):
       matched: filtered ? matchedIds.has(e.id) : false,
     })),
   };
+}
+
+/** Extract the titleSlug from a LeetCode URL. */
+function extractSlug(url: string): string | null {
+  const match = url.match(/leetcode\.com\/problems\/([a-z0-9-]+)/i);
+  return match ? match[1].toLowerCase() : null;
 }

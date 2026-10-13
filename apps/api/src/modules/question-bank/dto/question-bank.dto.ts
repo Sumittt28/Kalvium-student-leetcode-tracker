@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, IsUrl, Max, MaxLength, Min } from 'class-validator';
 import { QUESTION_BANK_GROUPS, QUESTION_ROLES, type QuestionBankGroup } from '@dsa/shared';
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
@@ -59,4 +59,46 @@ export class QuestionBankSetsQueryDto extends QuestionBankFiltersQueryDto {
   @ApiPropertyOptional({ default: 12, maximum: 60 })
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(60)
   pageSize: number = 12;
+}
+
+/** Update a single question in a set (replace the problem, or edit metadata). */
+export class UpdateQuestionBankEntryDto {
+  @ApiPropertyOptional({ description: 'New LeetCode URL to replace this question with', example: 'https://leetcode.com/problems/two-sum/' })
+  @IsOptional() @IsUrl() @MaxLength(200)
+  leetcodeUrl?: string;
+
+  @ApiPropertyOptional({ description: 'Topic (Group 1 only)', example: 'Arrays' })
+  @IsOptional() @Transform(trim) @IsString() @MaxLength(120)
+  topic?: string;
+
+  @ApiPropertyOptional({ description: 'Pattern (Group 1 only)', example: 'Two Pointers' })
+  @IsOptional() @Transform(trim) @IsString() @MaxLength(160)
+  pattern?: string;
+
+  @ApiPropertyOptional({ description: 'Role (Group 2 only): Warm-up, Core, or Stretch' })
+  @IsOptional() @IsIn(QUESTION_ROLES as unknown as string[])
+  role?: string;
+}
+
+/** Add a new question to a set. */
+export class AddQuestionBankEntryDto {
+  @ApiProperty({ description: 'LeetCode URL for the new question', example: 'https://leetcode.com/problems/two-sum/' })
+  @IsUrl() @MaxLength(200)
+  leetcodeUrl!: string;
+
+  @ApiProperty({ description: 'Position in the set (1-4 typically, or next available)', example: 5 })
+  @Type(() => Number) @IsInt() @Min(1) @Max(10)
+  position!: number;
+
+  @ApiPropertyOptional({ description: 'Topic (Group 1 only)' })
+  @IsOptional() @Transform(trim) @IsString() @MaxLength(120)
+  topic?: string;
+
+  @ApiPropertyOptional({ description: 'Pattern (Group 1 only)' })
+  @IsOptional() @Transform(trim) @IsString() @MaxLength(160)
+  pattern?: string;
+
+  @ApiPropertyOptional({ description: 'Role (Group 2 only): Warm-up, Core, or Stretch' })
+  @IsOptional() @IsIn(QUESTION_ROLES as unknown as string[])
+  role?: string;
 }

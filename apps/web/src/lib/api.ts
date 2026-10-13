@@ -545,6 +545,15 @@ export const api = {
   questionBankSet: (setKey: string) =>
     apiFetch<QuestionBankSetDto>(`/question-bank/sets/${encodeURIComponent(setKey)}`),
 
+  questionBankUpdateEntry: (entryId: string, data: { leetcodeUrl?: string; topic?: string; pattern?: string; role?: string }) =>
+    apiFetch<QuestionBankSetDto>(`/question-bank/entries/${entryId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+  questionBankDeleteEntry: (entryId: string) =>
+    apiFetch<{ setKey: string; deleted: boolean }>(`/question-bank/entries/${entryId}`, { method: 'DELETE' }),
+
+  questionBankAddEntry: (setKey: string, data: { leetcodeUrl: string; position: number; topic?: string; pattern?: string; role?: string }) =>
+    apiFetch<QuestionBankSetDto>(`/question-bank/sets/${encodeURIComponent(setKey)}/entries`, { method: 'POST', body: JSON.stringify(data) }),
+
   infosysDashboard: () => apiFetch<InfosysDashboardSummary>('/infosys/dashboard'),
 
   infosysStudents: () => apiFetch<InfosysStudentAnalysis[]>('/infosys/students'),

@@ -325,6 +325,8 @@ export function toProblemDifficulty(source: string): 'EASY' | 'MEDIUM' | 'HARD' 
 // ---------------------------------------------------------------------------
 
 export interface QuestionBankQuestionDto {
+  /** Entry ID for edit/delete operations. */
+  id: string;
   position: number;
   leetcodeNumber: number;
   /** The title exactly as supplied for this group (never normalised). */
