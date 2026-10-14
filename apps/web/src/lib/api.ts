@@ -554,24 +554,24 @@ export const api = {
   questionBankAddEntry: (setKey: string, data: { leetcodeUrl: string; position: number; topic?: string; pattern?: string; role?: string }) =>
     apiFetch<QuestionBankSetDto>(`/question-bank/sets/${encodeURIComponent(setKey)}/entries`, { method: 'POST', body: JSON.stringify(data) }),
 
-  // Cohort Recordings (session recordings with dates)
-  cohortRecordings: (campusCode?: string, cohort?: number) =>
-    apiFetch<{ id: string; campusId: string; campusCode: string; campusName: string; cohort: number; sessionDate: string; recordingUrl: string; topic: string | null }[]>(
-      `/cohort-recordings${qs({ campusCode, cohort })}`
+  // Session Recordings (global, per cohort - not per campus)
+  sessionRecordings: (cohort?: number) =>
+    apiFetch<{ id: string; cohort: number; sessionDate: string; recordingUrl: string; topic: string | null }[]>(
+      `/session-recordings${cohort ? qs({ cohort }) : ''}`
     ),
 
-  createCohortRecording: (data: { campusCode: string; cohort: number; sessionDate: string; recordingUrl: string; topic?: string }) =>
-    apiFetch<{ id: string; campusId: string; campusCode: string; cohort: number; sessionDate: string; recordingUrl: string; topic: string | null }>(
-      '/cohort-recordings', { method: 'POST', body: JSON.stringify(data) }
+  createSessionRecording: (data: { cohort: number; sessionDate: string; recordingUrl: string; topic?: string }) =>
+    apiFetch<{ id: string; cohort: number; sessionDate: string; recordingUrl: string; topic: string | null }>(
+      '/session-recordings', { method: 'POST', body: JSON.stringify(data) }
     ),
 
-  updateCohortRecording: (id: string, data: { recordingUrl?: string; topic?: string; sessionDate?: string }) =>
+  updateSessionRecording: (id: string, data: { recordingUrl?: string; topic?: string; sessionDate?: string }) =>
     apiFetch<{ id: string; sessionDate: string; recordingUrl: string; topic: string | null }>(
-      `/cohort-recordings/${id}`, { method: 'PATCH', body: JSON.stringify(data) }
+      `/session-recordings/${id}`, { method: 'PATCH', body: JSON.stringify(data) }
     ),
 
-  deleteCohortRecording: (id: string) =>
-    apiFetch<{ deleted: boolean }>(`/cohort-recordings/${id}`, { method: 'DELETE' }),
+  deleteSessionRecording: (id: string) =>
+    apiFetch<{ deleted: boolean }>(`/session-recordings/${id}`, { method: 'DELETE' }),
 
   infosysDashboard: () => apiFetch<InfosysDashboardSummary>('/infosys/dashboard'),
 

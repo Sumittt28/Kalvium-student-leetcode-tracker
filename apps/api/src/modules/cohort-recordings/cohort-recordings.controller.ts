@@ -6,10 +6,7 @@ import { Type } from 'class-transformer';
 import { Roles } from '../../common/decorators';
 import { CohortRecordingsService } from './cohort-recordings.service';
 
-class CreateCohortRecordingDto {
-  @IsString()
-  campusCode!: string;
-
+class CreateSessionRecordingDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
@@ -28,7 +25,7 @@ class CreateCohortRecordingDto {
   topic?: string;
 }
 
-class UpdateCohortRecordingDto {
+class UpdateSessionRecordingDto {
   @IsOptional()
   @IsUrl()
   recordingUrl?: string;
@@ -43,33 +40,33 @@ class UpdateCohortRecordingDto {
   sessionDate?: string;
 }
 
-@ApiTags('Cohort Recordings')
+@ApiTags('Session Recordings')
 @ApiBearerAuth()
-@Controller('cohort-recordings')
+@Controller('session-recordings')
 export class CohortRecordingsController {
   constructor(private readonly service: CohortRecordingsService) {}
 
   @Get()
   @Roles('ADMIN', 'MENTOR', 'VIEWER')
-  @ApiOperation({ summary: 'List all session recordings, optionally filtered by campus and cohort' })
+  @ApiOperation({ summary: 'List all session recordings, optionally filtered by cohort' })
   findAll(
-    @Query('campusCode') campusCode?: string,
-    @Query('cohort', new (class { transform(v: string) { return v ? parseInt(v, 10) : undefined; } })()) cohort?: number,
+    @Query('cohort') cohortStr?: string,
   ) {
-    return this.service.findAll(campusCode, cohort);
+    const cohort = cohortStr ? parseInt(cohortStr, 10) : undefined;
+    return this.service.findAll(cohort);
   }
 
   @Post()
   @Roles('ADMIN', 'MENTOR')
   @ApiOperation({ summary: 'Add a new session recording' })
-  create(@Body() dto: CreateCohortRecordingDto) {
+  create(@Body() dto: CreateSessionRecordingDto) {
     return this.service.create(dto);
   }
 
   @Patch(':id')
   @Roles('ADMIN', 'MENTOR')
   @ApiOperation({ summary: 'Update a session recording' })
-  update(@Param('id') id: string, @Body() dto: UpdateCohortRecordingDto) {
+  update(@Param('id') id: string, @Body() dto: UpdateSessionRecordingDto) {
     return this.service.update(id, dto);
   }
 
