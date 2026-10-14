@@ -546,13 +546,13 @@ export const api = {
     apiFetch<QuestionBankSetDto>(`/question-bank/sets/${encodeURIComponent(setKey)}`),
 
   questionBankUpdateEntry: (entryId: string, data: { leetcodeUrl?: string; topic?: string; pattern?: string; role?: string }) =>
-    apiFetch<QuestionBankSetDto>(`/question-bank/entries/${entryId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    apiFetch<QuestionBankSetDto>(`/question-bank/entries/${entryId}`, { method: 'PATCH', body: data }),
 
   questionBankDeleteEntry: (entryId: string) =>
     apiFetch<{ setKey: string; deleted: boolean }>(`/question-bank/entries/${entryId}`, { method: 'DELETE' }),
 
   questionBankAddEntry: (setKey: string, data: { leetcodeUrl: string; position: number; topic?: string; pattern?: string; role?: string }) =>
-    apiFetch<QuestionBankSetDto>(`/question-bank/sets/${encodeURIComponent(setKey)}/entries`, { method: 'POST', body: JSON.stringify(data) }),
+    apiFetch<QuestionBankSetDto>(`/question-bank/sets/${encodeURIComponent(setKey)}/entries`, { method: 'POST', body: data }),
 
   // Session Recordings (global, per cohort - not per campus)
   sessionRecordings: (cohort?: number) =>
@@ -562,12 +562,12 @@ export const api = {
 
   createSessionRecording: (data: { cohort: number; sessionDate: string; recordingUrl: string; topic?: string }) =>
     apiFetch<{ id: string; cohort: number; sessionDate: string; recordingUrl: string; topic: string | null }>(
-      '/session-recordings', { method: 'POST', body: JSON.stringify(data) }
+      '/session-recordings', { method: 'POST', body: data }
     ),
 
   updateSessionRecording: (id: string, data: { recordingUrl?: string; topic?: string; sessionDate?: string }) =>
     apiFetch<{ id: string; sessionDate: string; recordingUrl: string; topic: string | null }>(
-      `/session-recordings/${id}`, { method: 'PATCH', body: JSON.stringify(data) }
+      `/session-recordings/${id}`, { method: 'PATCH', body: data }
     ),
 
   deleteSessionRecording: (id: string) =>
