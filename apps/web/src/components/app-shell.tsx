@@ -31,6 +31,7 @@ import {
   Sun,
   Trophy,
   Users,
+  Video,
 } from 'lucide-react';
 
 import { api, tokenStore } from '@/lib/api';
@@ -48,6 +49,9 @@ const NAV = [
   // reads nothing about students and writes nothing — assignments are still made on the
   // Assignments page.
   { href: '/question-bank', label: 'Question Bank', icon: BookOpen },
+  // Session recordings organized by cohort (belt level). All students in a cohort watch
+  // the same sessions regardless of campus.
+  { href: '/session-recordings', label: 'Session Recordings', icon: Video },
   // Its own top-level section, deliberately not nested under Assignments: a baseline
   // test measures independent capability and shares no scoring, streak or leaderboard
   // with daily practice (§18, §25).
