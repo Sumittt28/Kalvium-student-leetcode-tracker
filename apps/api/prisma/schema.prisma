@@ -870,7 +870,7 @@ model Assignment {
   dailyStatuses   DailyStatus[]
   audienceChanges AssignmentAudienceChange[]
 
-  @@unique([dayKey, campusId, batchId])
+  @@unique([dayKey, campusId, batchId, cohort])
   @@index([dayKey])
   @@index([batchId, dayKey])
   /// The daily resolver's access path: one day, narrowed to one campus's rows.
