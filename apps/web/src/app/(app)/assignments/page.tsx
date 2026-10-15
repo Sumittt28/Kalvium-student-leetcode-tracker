@@ -431,7 +431,7 @@ function AssignmentsPageInner() {
                         : 'rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm font-medium text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]'
                     }
                   >
-                    G1 (Foundation)
+                    G1
                   </button>
                   <button
                     type="button"
@@ -448,7 +448,7 @@ function AssignmentsPageInner() {
                         : 'rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm font-medium text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]'
                     }
                   >
-                    G2 (Intermediate)
+                    G2
                   </button>
                 </div>
                 {!globalBatchChoiceMade ? (

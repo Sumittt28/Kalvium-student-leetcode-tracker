@@ -211,6 +211,39 @@ export class AssignmentsService {
       return [{ campusId, batchId: null }];
     }
 
+    // When "All campuses" is selected with batch codes (e.g., G1, G2), find all matching
+    // batches across all Coding-Hours-enabled campuses and create one assignment per campus.
+    if (campusId === null) {
+      const scopes: AudienceScope[] = [];
+      for (const selector of batches) {
+        const code = selector.trim().toUpperCase();
+        // Find all batches with this code at enabled campuses
+        const matchingBatches = await this.prisma.batch.findMany({
+          where: {
+            code: { equals: code, mode: 'insensitive' },
+            status: 'ACTIVE',
+            campus: { codingHoursEnabled: true, status: 'ACTIVE' },
+          },
+          select: { id: true, campusId: true, name: true },
+        });
+
+        if (matchingBatches.length === 0) {
+          throw new BadRequestException(
+            `No active batch with code "${selector}" found at any enabled campus.`,
+          );
+        }
+
+        for (const batch of matchingBatches) {
+          const scope: AudienceScope = { campusId: batch.campusId, batchId: batch.id };
+          if (!scopes.some((existing) => existing.batchId === scope.batchId)) {
+            scopes.push(scope);
+          }
+        }
+      }
+      return scopes;
+    }
+
+    // Specific campus selected - resolve batches within that campus
     const scopes: AudienceScope[] = [];
     for (const selector of batches) {
       const batch = await this.campuses.findBatch(campusId, selector);
