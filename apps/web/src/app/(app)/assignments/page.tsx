@@ -136,6 +136,13 @@ function AssignmentsPageInner() {
   const [cohortChoiceMade, setCohortChoiceMade] = useState(false);
 
   /**
+   * When "All campuses" is selected, we use batch codes (G1, G2) instead of IDs.
+   * This allows targeting all G1 students across all campuses in one assignment.
+   */
+  const [globalBatchCode, setGlobalBatchCode] = useState<'G1' | 'G2' | null>(null);
+  const [globalBatchChoiceMade, setGlobalBatchChoiceMade] = useState(false);
+
+  /**
    * Whether the mentor has *actually* touched each selector.
    *
    * "All campuses" and "All batches" are real, supported choices, but neither must ever
@@ -212,7 +219,11 @@ function AssignmentsPageInner() {
         dayKey,
         topic: topic || undefined,
         campus: targetCampusId ?? undefined,
-        batches: targetBatchIds.length > 0 ? targetBatchIds : undefined,
+        // When "All campuses" is selected, use the global batch code (G1/G2)
+        // When a specific campus is selected, use the batch IDs
+        batches: targetCampusId === null
+          ? (globalBatchCode ? [globalBatchCode] : undefined)
+          : (targetBatchIds.length > 0 ? targetBatchIds : undefined),
         cohort: targetCohort ?? undefined,
         problemUrls: urls.map((url) => url.trim()).filter(Boolean),
       }),
@@ -230,6 +241,8 @@ function AssignmentsPageInner() {
       setBatchChoiceMade(false);
       setTargetCohort(null);
       setCohortChoiceMade(false);
+      setGlobalBatchCode(null);
+      setGlobalBatchChoiceMade(false);
       setCreating(false);
       void queryClient.invalidateQueries({ queryKey: ['assignments'] });
       void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
@@ -266,6 +279,8 @@ function AssignmentsPageInner() {
                   setBatchChoiceMade(false);
                   setTargetCohort(null);
                   setCohortChoiceMade(false);
+                  setGlobalBatchCode(null);
+                  setGlobalBatchChoiceMade(false);
                 }
                 return !open;
               })
@@ -375,13 +390,139 @@ function AssignmentsPageInner() {
                   );
                 })}
               </div>
-              {campusChoiceMade && targetCampusId === null ? (
-                <p className="mt-1.5 text-xs text-[var(--color-warning)]">
-                  This creates one assignment that applies to every student at every
-                  campus. Pick a campus if you meant one of them.
-                </p>
-              ) : null}
             </div>
+
+            {/* Global batch selector when "All campuses" is selected */}
+            {campusChoiceMade && targetCampusId === null ? (
+              <div>
+                <span className="mb-1.5 block text-xs font-medium">
+                  Target Batch <span className="text-[var(--color-fg-muted)]">(across all campuses)</span>
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    aria-pressed={globalBatchChoiceMade && globalBatchCode === null}
+                    onClick={() => {
+                      setGlobalBatchCode(null);
+                      setGlobalBatchChoiceMade(true);
+                      setTargetCohort(null);
+                      setCohortChoiceMade(false);
+                    }}
+                    className={
+                      globalBatchChoiceMade && globalBatchCode === null
+                        ? 'rounded-lg bg-[var(--color-brand)] px-3 py-1.5 text-sm font-medium text-[var(--color-brand-fg)]'
+                        : 'rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm font-medium text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]'
+                    }
+                  >
+                    All Batches
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={globalBatchChoiceMade && globalBatchCode === 'G1'}
+                    onClick={() => {
+                      setGlobalBatchCode('G1');
+                      setGlobalBatchChoiceMade(true);
+                      setTargetCohort(null);
+                      setCohortChoiceMade(false);
+                    }}
+                    className={
+                      globalBatchChoiceMade && globalBatchCode === 'G1'
+                        ? 'rounded-lg bg-[var(--color-brand)] px-3 py-1.5 text-sm font-medium text-[var(--color-brand-fg)]'
+                        : 'rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm font-medium text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]'
+                    }
+                  >
+                    G1 (Foundation)
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={globalBatchChoiceMade && globalBatchCode === 'G2'}
+                    onClick={() => {
+                      setGlobalBatchCode('G2');
+                      setGlobalBatchChoiceMade(true);
+                      setTargetCohort(null);
+                      setCohortChoiceMade(false);
+                    }}
+                    className={
+                      globalBatchChoiceMade && globalBatchCode === 'G2'
+                        ? 'rounded-lg bg-[var(--color-brand)] px-3 py-1.5 text-sm font-medium text-[var(--color-brand-fg)]'
+                        : 'rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm font-medium text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]'
+                    }
+                  >
+                    G2 (Intermediate)
+                  </button>
+                </div>
+                {!globalBatchChoiceMade ? (
+                  <p className="mt-1.5 text-xs text-[var(--color-fg-subtle)]">
+                    Pick G1 or G2 to target that group across all campuses, or "All Batches" for everyone.
+                  </p>
+                ) : globalBatchCode === null ? (
+                  <p className="mt-1.5 text-xs text-[var(--color-warning)]">
+                    This will assign to ALL students at ALL campuses (G1 + G2).
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            {/* Cohort selector for global G1 selection */}
+            {campusChoiceMade && targetCampusId === null && globalBatchChoiceMade && globalBatchCode === 'G1' ? (
+              <div>
+                <span className="mb-1.5 block text-xs font-medium">
+                  Target Cohort <span className="text-[var(--color-fg-muted)]">(within G1)</span>
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    aria-pressed={cohortChoiceMade && targetCohort === null}
+                    onClick={() => {
+                      setTargetCohort(null);
+                      setCohortChoiceMade(true);
+                    }}
+                    className={
+                      cohortChoiceMade && targetCohort === null
+                        ? 'rounded-lg bg-[var(--color-brand)] px-3 py-1.5 text-sm font-medium text-[var(--color-brand-fg)]'
+                        : 'rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm font-medium text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]'
+                    }
+                  >
+                    All Cohorts
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={cohortChoiceMade && targetCohort === 1}
+                    onClick={() => {
+                      setTargetCohort(1);
+                      setCohortChoiceMade(true);
+                    }}
+                    className={
+                      cohortChoiceMade && targetCohort === 1
+                        ? 'rounded-lg bg-[var(--color-brand)] px-3 py-1.5 text-sm font-medium text-[var(--color-brand-fg)]'
+                        : 'rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm font-medium text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]'
+                    }
+                  >
+                    Cohort 1 · Belt 4 → 5
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={cohortChoiceMade && targetCohort === 2}
+                    onClick={() => {
+                      setTargetCohort(2);
+                      setCohortChoiceMade(true);
+                    }}
+                    className={
+                      cohortChoiceMade && targetCohort === 2
+                        ? 'rounded-lg bg-[var(--color-brand)] px-3 py-1.5 text-sm font-medium text-[var(--color-brand-fg)]'
+                        : 'rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm font-medium text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]'
+                    }
+                  >
+                    Cohort 2 · Belt 5 → 6
+                  </button>
+                </div>
+                {!cohortChoiceMade ? (
+                  <p className="mt-1.5 text-xs text-[var(--color-fg-subtle)]">
+                    Pick a cohort to target specific belt level students across all campuses.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
 
             {/*
               Target Batch, resolved *within* the chosen campus. Required, and never
@@ -570,23 +711,35 @@ function AssignmentsPageInner() {
                 <p className="mt-1 text-[var(--color-fg-muted)]">
                   {!campusChoiceMade
                     ? 'Pick a target campus above to see what will be created.'
-                    : batchSelectionRequired && !batchChoiceMade
+                    : targetCampusId === null && !globalBatchChoiceMade
                       ? 'Pick a target batch above to see what will be created.'
-                      : `${filledCount} problem${filledCount === 1 ? '' : 's'} on ${dayKey} for ${
-                          targetBatchIds.length === 0
-                            ? `${targetCampusName} — All batches`
-                            : batches
-                                .filter((batch) => targetBatchIds.includes(batch.id))
-                                .map((batch) => {
-                                  const cohortLabel = batch.code === 'G1' && targetCohort
-                                    ? ` · Cohort ${targetCohort}`
-                                    : batch.code === 'G1' && cohortChoiceMade
-                                      ? ' · All Cohorts'
-                                      : '';
-                                  return `${targetCampusName} — ${batch.name}${cohortLabel}`;
-                                })
-                                .join('; ')
-                        }.`}
+                      : targetCampusId === null && globalBatchCode === 'G1' && !cohortChoiceMade
+                        ? 'Pick a target cohort above to see what will be created.'
+                        : batchSelectionRequired && !batchChoiceMade
+                          ? 'Pick a target batch above to see what will be created.'
+                          : targetCampusId === null
+                            ? `${filledCount} problem${filledCount === 1 ? '' : 's'} on ${dayKey} for All Campuses — ${
+                                globalBatchCode === null
+                                  ? 'All Batches (G1 + G2)'
+                                  : globalBatchCode === 'G1'
+                                    ? `G1${targetCohort ? ` · Cohort ${targetCohort}` : cohortChoiceMade ? ' · All Cohorts' : ''}`
+                                    : 'G2'
+                              }.`
+                            : `${filledCount} problem${filledCount === 1 ? '' : 's'} on ${dayKey} for ${
+                                targetBatchIds.length === 0
+                                  ? `${targetCampusName} — All batches`
+                                  : batches
+                                      .filter((batch) => targetBatchIds.includes(batch.id))
+                                      .map((batch) => {
+                                        const cohortLabel = batch.code === 'G1' && targetCohort
+                                          ? ` · Cohort ${targetCohort}`
+                                          : batch.code === 'G1' && cohortChoiceMade
+                                            ? ' · All Cohorts'
+                                            : '';
+                                        return `${targetCampusName} — ${batch.name}${cohortLabel}`;
+                                      })
+                                      .join('; ')
+                              }.`}
                 </p>
               </div>
             ) : null}
@@ -599,7 +752,12 @@ function AssignmentsPageInner() {
                 disabled={
                   filledCount === 0 ||
                   !campusChoiceMade ||
-                  (batchSelectionRequired && !batchChoiceMade) ||
+                  // For "All campuses", require global batch selection
+                  (targetCampusId === null && !globalBatchChoiceMade) ||
+                  // For "All campuses" + G1, require cohort selection
+                  (targetCampusId === null && globalBatchCode === 'G1' && !cohortChoiceMade) ||
+                  // For specific campus, require batch selection if batches exist
+                  (targetCampusId !== null && batchSelectionRequired && !batchChoiceMade) ||
                   targetBatchIds.some((id) => takenBatchIds.has(id)) ||
                   (targetBatchIds.length === 0 && wholeCampusTaken)
                 }
