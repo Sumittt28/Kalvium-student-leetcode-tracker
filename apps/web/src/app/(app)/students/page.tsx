@@ -57,6 +57,8 @@ export default function StudentsPage() {
   const [syncStatus, setSyncStatus] = useState(() => searchParams.get('syncStatus') ?? '');
   const [cohort, setCohort] = useState(() => searchParams.get('cohort') ?? '');
   const [sortBy, setSortBy] = useState(() => searchParams.get('sortBy') ?? 'batchCohort'); // Default to batch+cohort grouping
+  /** Date filter for checking submissions on a specific day. Defaults to today. */
+  const [selectedDate, setSelectedDate] = useState(() => searchParams.get('date') ?? todayKey());
   /** '' = current students only (the default), 'all' = plus archived, 'ARCHIVED' = only. */
   const [archiveScope, setArchiveScope] = useState(() => searchParams.get('archiveScope') ?? '');
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
@@ -115,19 +117,19 @@ export default function StudentsPage() {
       }),
   });
 
-  // Today's completion for the table. Read from the daily tracker rather than recomputed
+  // Completion for the selected date. Read from the daily tracker rather than recomputed
   // here, so this column can never disagree with the mentor view about the same student.
-  const today = useQuery({
-    queryKey: ['mentor', todayKey(), campus, batch],
+  const dayCompletion = useQuery({
+    queryKey: ['mentor', selectedDate, campus, batch],
     queryFn: () =>
-      api.mentorDashboard(todayKey(), undefined, campus ?? undefined, batch ?? undefined),
+      api.mentorDashboard(selectedDate, undefined, campus ?? undefined, batch ?? undefined),
     staleTime: 60_000,
   });
 
 
 
   const completionByStudent = new Map(
-    (today.data?.buckets ?? [])
+    (dayCompletion.data?.buckets ?? [])
       .flatMap((bucket) => bucket.students)
       .map((row) => [row.studentId, { solved: row.solvedCount, assigned: row.assignedCount }]),
   );
@@ -441,6 +443,27 @@ export default function StudentsPage() {
             <option value="currentStreak">Sort: Current Streak</option>
             <option value="createdAt">Sort: Date Added</option>
           </select>
+
+          {/* Date picker for checking submissions on a specific day */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-[var(--color-fg-muted)]">Submissions for:</span>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(event) => setSelectedDate(event.target.value)}
+              max={todayKey()}
+              className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm outline-none"
+            />
+            {selectedDate !== todayKey() && (
+              <button
+                type="button"
+                onClick={() => setSelectedDate(todayKey())}
+                className="text-xs text-[var(--color-brand)] hover:underline"
+              >
+                Today
+              </button>
+            )}
+          </div>
         </div>
 
         {/*
@@ -498,7 +521,9 @@ export default function StudentsPage() {
                   <Th className="text-right">Max belt</Th>
                   <Th>LeetCode</Th>
                   <Th>Streak</Th>
-                  <Th className="text-right">Today</Th>
+                  <Th className="text-right">
+                    {selectedDate === todayKey() ? 'Today' : new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                  </Th>
                   <Th className="text-right">Total solved</Th>
                   <Th>Last sync</Th>
                   <Th className="text-right">Actions</Th>
