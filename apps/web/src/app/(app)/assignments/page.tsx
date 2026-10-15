@@ -830,9 +830,11 @@ function AssignmentsPageInner() {
                     {assignment.batchCode ? (
                       <span className="inline-flex items-center gap-1.5">
                         <BatchChip code={assignment.batchCode} name={assignment.batchName} />
-                        <span className="text-xs text-[var(--color-fg-muted)]">
-                          {assignment.batchName}
-                        </span>
+                        {assignment.cohort ? (
+                          <span className="text-xs text-[var(--color-fg-muted)]">
+                            Cohort {assignment.cohort}
+                          </span>
+                        ) : null}
                       </span>
                     ) : (
                       <Badge tone="neutral">All batches</Badge>
