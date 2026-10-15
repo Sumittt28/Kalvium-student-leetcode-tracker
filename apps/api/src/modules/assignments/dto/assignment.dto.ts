@@ -5,10 +5,13 @@ import {
   IsArray,
   IsBoolean,
   IsIn,
+  IsInt,
   IsOptional,
   IsString,
   Matches,
+  Max,
   MaxLength,
+  Min,
 } from 'class-validator';
 import { DIFFICULTIES, type Difficulty } from '@dsa/shared';
 
@@ -66,6 +69,22 @@ export class CreateAssignmentDto {
   @ArrayMaxSize(20)
   @IsString({ each: true })
   batches?: string[];
+
+  /**
+   * Target cohort within the batch. Omit to target all cohorts.
+   * 1 = Cohort 1 (Belt 4 → Belt 5)
+   * 2 = Cohort 2 (Belt 5 → Belt 6)
+   * 3 = Cohort 3 (Belt 6+)
+   */
+  @ApiPropertyOptional({
+    example: 1,
+    description: 'Target cohort within the batch. Omit for all cohorts.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(10)
+  cohort?: number;
 
   @ApiProperty({
     type: [String],

@@ -438,6 +438,11 @@ export interface AssignmentSummary {
   batchId: string | null;
   batchName: string | null;
   batchCode: string | null;
+  /**
+   * Target cohort within the batch. `null` means all cohorts.
+   * 1 = Cohort 1 (Belt 4 → Belt 5), 2 = Cohort 2 (Belt 5 → Belt 6), 3 = Cohort 3 (Belt 6+)
+   */
+  cohort: number | null;
   /** `SRM University — Foundation Level`. What the preview and history rows render. */
   audienceLabel: string;
   /** Active students this assignment currently applies to. */

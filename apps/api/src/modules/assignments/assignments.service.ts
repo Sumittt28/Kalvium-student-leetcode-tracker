@@ -116,8 +116,19 @@ export class AssignmentsService {
 
     const scopes = await this.resolveTargetScopes(dto.campus, dto.batches);
 
+    // Check for clashes. Cohort logic:
+    // - Assignment for ALL cohorts (null) clashes with any existing assignment for that batch
+    // - Assignment for a specific cohort clashes with ALL cohorts (null) or same cohort
+    const cohortClashCondition = dto.cohort
+      ? { OR: [{ cohort: null }, { cohort: dto.cohort }] }
+      : {}; // null = all cohorts, clashes with everything
+
     const clashes = await this.prisma.assignment.findMany({
-      where: { dayKey: dto.dayKey, OR: scopes.map((scope) => ({ ...scope })) },
+      where: {
+        dayKey: dto.dayKey,
+        ...cohortClashCondition,
+        OR: scopes.map((scope) => ({ ...scope })),
+      },
       include: {
         batch: { select: { name: true } },
         campus: { select: { name: true } },
@@ -144,6 +155,7 @@ export class AssignmentsService {
             dayKey: dto.dayKey,
             campusId: scope.campusId,
             batchId: scope.batchId,
+            cohort: dto.cohort ?? null,
             // Frozen at creation — see the schema note on `originalBatchId`.
             originalCampusId: scope.campusId,
             originalBatchId: scope.batchId,
@@ -776,6 +788,7 @@ export class AssignmentsService {
       campus?: { name: string; code: string } | null;
       batchId: string | null;
       batch?: { name: string; code: string } | null;
+      cohort?: number | null;
       originalCampusId: string | null;
       originalCampus?: { name: string; code: string } | null;
       originalBatchId: string | null;
@@ -815,6 +828,7 @@ export class AssignmentsService {
       batchId: assignment.batchId,
       batchName: assignment.batch?.name ?? null,
       batchCode: assignment.batch?.code ?? null,
+      cohort: assignment.cohort ?? null,
       audienceLabel: describeScope(
         assignment.campus?.name ?? null,
         assignment.batch?.name ?? null,

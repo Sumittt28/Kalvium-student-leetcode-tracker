@@ -834,6 +834,9 @@ model Assignment {
   /// `batch.campusId` when `batchId` is set.
   campusId String? @db.Uuid
   batchId  String? @db.Uuid
+  /// Target cohort within the batch. NULL = all cohorts in the batch.
+  /// 1 = Cohort 1 (Belt 4 → Belt 5), 2 = Cohort 2 (Belt 5 → Belt 6), 3 = Cohort 3 (Belt 6+)
+  cohort   Int?
 
   /// The audience this assignment was created with, frozen forever once set (first write
   /// wins — see the migration). `campusId`/`batchId` are the *current* administrative

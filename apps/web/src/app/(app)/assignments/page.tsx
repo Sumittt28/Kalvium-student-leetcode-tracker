@@ -81,6 +81,18 @@ function AssignmentsPageInner() {
     setTopic(`${QUESTION_BANK_GROUP_LABELS[set.group].split(' — ')[0]} · ${bankSetLabel(set)}`);
     setBankLabel(`${QUESTION_BANK_GROUP_LABELS[set.group]} · ${bankSetLabel(set)}`);
     setBankGroup(set.group);
+    // Auto-select cohort based on belt level (G1 only)
+    // Belt 5 questions → Cohort 1 (Belt 4 students preparing for Belt 5)
+    // Belt 6 questions → Cohort 2 (Belt 5 students preparing for Belt 6)
+    if (set.group === 'GROUP_1' && set.belt) {
+      if (set.belt === 5) {
+        setTargetCohort(1);
+        setCohortChoiceMade(true);
+      } else if (set.belt === 6) {
+        setTargetCohort(2);
+        setCohortChoiceMade(true);
+      }
+    }
     setCreating(true);
   }, [bankSet.data]);
   useEffect(() => {
@@ -115,6 +127,13 @@ function AssignmentsPageInner() {
    * batch — which is exactly how the batches are meant to diverge (§9).
    */
   const [targetBatchIds, setTargetBatchIds] = useState<string[]>([]);
+
+  /**
+   * Target cohort within the batch. `null` means all cohorts.
+   * Only relevant when a batch is selected (e.g., G1 has cohort 1 and 2).
+   */
+  const [targetCohort, setTargetCohort] = useState<number | null>(null);
+  const [cohortChoiceMade, setCohortChoiceMade] = useState(false);
 
   /**
    * Whether the mentor has *actually* touched each selector.
@@ -194,6 +213,7 @@ function AssignmentsPageInner() {
         topic: topic || undefined,
         campus: targetCampusId ?? undefined,
         batches: targetBatchIds.length > 0 ? targetBatchIds : undefined,
+        cohort: targetCohort ?? undefined,
         problemUrls: urls.map((url) => url.trim()).filter(Boolean),
       }),
     onSuccess: (created) => {
@@ -208,6 +228,8 @@ function AssignmentsPageInner() {
       setCampusChoiceMade(false);
       setTargetBatchIds([]);
       setBatchChoiceMade(false);
+      setTargetCohort(null);
+      setCohortChoiceMade(false);
       setCreating(false);
       void queryClient.invalidateQueries({ queryKey: ['assignments'] });
       void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
@@ -242,6 +264,8 @@ function AssignmentsPageInner() {
                   setCampusChoiceMade(false);
                   setTargetBatchIds([]);
                   setBatchChoiceMade(false);
+                  setTargetCohort(null);
+                  setCohortChoiceMade(false);
                 }
                 return !open;
               })
@@ -455,6 +479,67 @@ function AssignmentsPageInner() {
               </div>
             ) : null}
 
+            {/* Cohort selector - only show for G1 batch which has multiple cohorts */}
+            {batchChoiceMade && batches.some((b) => targetBatchIds.includes(b.id) && b.code === 'G1') ? (
+              <div>
+                <span className="mb-1.5 block text-xs font-medium">
+                  Target Cohort <span className="text-[var(--color-fg-muted)]">(within G1)</span>
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    aria-pressed={cohortChoiceMade && targetCohort === null}
+                    onClick={() => {
+                      setTargetCohort(null);
+                      setCohortChoiceMade(true);
+                    }}
+                    className={
+                      cohortChoiceMade && targetCohort === null
+                        ? 'rounded-lg bg-[var(--color-brand)] px-3 py-1.5 text-sm font-medium text-[var(--color-brand-fg)]'
+                        : 'rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm font-medium text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]'
+                    }
+                  >
+                    All Cohorts
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={cohortChoiceMade && targetCohort === 1}
+                    onClick={() => {
+                      setTargetCohort(1);
+                      setCohortChoiceMade(true);
+                    }}
+                    className={
+                      cohortChoiceMade && targetCohort === 1
+                        ? 'rounded-lg bg-[var(--color-brand)] px-3 py-1.5 text-sm font-medium text-[var(--color-brand-fg)]'
+                        : 'rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm font-medium text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]'
+                    }
+                  >
+                    Cohort 1 · Belt 4 → 5
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={cohortChoiceMade && targetCohort === 2}
+                    onClick={() => {
+                      setTargetCohort(2);
+                      setCohortChoiceMade(true);
+                    }}
+                    className={
+                      cohortChoiceMade && targetCohort === 2
+                        ? 'rounded-lg bg-[var(--color-brand)] px-3 py-1.5 text-sm font-medium text-[var(--color-brand-fg)]'
+                        : 'rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm font-medium text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]'
+                    }
+                  >
+                    Cohort 2 · Belt 5 → 6
+                  </button>
+                </div>
+                {!cohortChoiceMade ? (
+                  <p className="mt-1.5 text-xs text-[var(--color-fg-subtle)]">
+                    Pick a target cohort. Belt 5 questions go to Cohort 1, Belt 6 questions go to Cohort 2.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
             {urls.map((url, index) => (
               <div key={index}>
                 <label htmlFor={`problem-${index}`} className="mb-1.5 block text-xs font-medium">
@@ -492,7 +577,14 @@ function AssignmentsPageInner() {
                             ? `${targetCampusName} — All batches`
                             : batches
                                 .filter((batch) => targetBatchIds.includes(batch.id))
-                                .map((batch) => `${targetCampusName} — ${batch.name}`)
+                                .map((batch) => {
+                                  const cohortLabel = batch.code === 'G1' && targetCohort
+                                    ? ` · Cohort ${targetCohort}`
+                                    : batch.code === 'G1' && cohortChoiceMade
+                                      ? ' · All Cohorts'
+                                      : '';
+                                  return `${targetCampusName} — ${batch.name}${cohortLabel}`;
+                                })
                                 .join('; ')
                         }.`}
                 </p>
