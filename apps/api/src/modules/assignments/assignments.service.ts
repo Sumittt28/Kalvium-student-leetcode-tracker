@@ -119,15 +119,21 @@ export class AssignmentsService {
     // Check for clashes. Cohort logic:
     // - Assignment for ALL cohorts (null) clashes with any existing assignment for that batch
     // - Assignment for a specific cohort clashes with ALL cohorts (null) or same cohort
-    const cohortClashCondition = dto.cohort
-      ? { OR: [{ cohort: null }, { cohort: dto.cohort }] }
-      : {}; // null = all cohorts, clashes with everything
-
+    // - Assignment for cohort 1 does NOT clash with cohort 2 (different audiences)
     const clashes = await this.prisma.assignment.findMany({
       where: {
         dayKey: dto.dayKey,
-        ...cohortClashCondition,
+        // Match any of the target scopes (campus/batch combinations)
         OR: scopes.map((scope) => ({ ...scope })),
+        // Cohort clash condition: only clash if cohorts overlap
+        ...(dto.cohort
+          ? {
+              // Creating for specific cohort: clash with null (all) or same cohort
+              AND: [{ OR: [{ cohort: null }, { cohort: dto.cohort }] }],
+            }
+          : {
+              // Creating for ALL cohorts: clash with anything (no additional filter)
+            }),
       },
       include: {
         batch: { select: { name: true } },
