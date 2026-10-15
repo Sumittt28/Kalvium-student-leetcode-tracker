@@ -280,6 +280,22 @@ export class AdminController {
     return this.prisma.batch.delete({ where: { id } });
   }
 
+  // --- Campus Settings -----------------------------------------------------
+
+  @Patch('campuses/:id/coding-hours')
+  @Audit('CAMPUS_UPDATED', 'Campus')
+  @ApiOperation({ summary: 'Enable or disable Coding Hours 2.0 for a campus' })
+  async toggleCampusCodingHours(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: { enabled: boolean },
+  ) {
+    return this.prisma.campus.update({
+      where: { id },
+      data: { codingHoursEnabled: dto.enabled },
+      select: { id: true, code: true, name: true, codingHoursEnabled: true },
+    });
+  }
+
   // --- Squads --------------------------------------------------------------
 
   @Get('squads')

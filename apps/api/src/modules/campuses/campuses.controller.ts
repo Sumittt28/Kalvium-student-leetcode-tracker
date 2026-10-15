@@ -50,6 +50,7 @@ export class CampusesController {
       query.includeArchived ?? false,
       await this.mentorScope.allowedCampusIds(user),
       query.hasCodingHoursActivity ?? false,
+      query.codingHoursOnly ?? false,
     );
   }
 

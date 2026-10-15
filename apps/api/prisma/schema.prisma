@@ -352,6 +352,9 @@ model Campus {
   /// Display order for pickers and reports, so the founding campus leads regardless of
   /// name or insertion order.
   sortOrder   Int          @default(0)
+  /// Whether Coding Hours 2.0 is enabled for this campus. Only enabled campuses appear
+  /// in assignment creation and filters.
+  codingHoursEnabled Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

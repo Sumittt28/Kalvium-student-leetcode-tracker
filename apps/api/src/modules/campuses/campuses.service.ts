@@ -102,11 +102,14 @@ export class CampusesService {
     includeArchived = false,
     viewerCampusIds: CampusScope = null,
     hasCodingHoursActivity = false,
+    codingHoursOnly = false,
   ): Promise<CampusSummary[]> {
     const campuses = await this.prisma.campus.findMany({
       where: {
         ...(includeArchived ? {} : { status: 'ACTIVE' as const }),
         ...(viewerCampusIds !== null ? { id: { in: viewerCampusIds } } : {}),
+        // Only show campuses where Coding Hours 2.0 is enabled
+        ...(codingHoursOnly ? { codingHoursEnabled: true } : {}),
       },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
       include: {

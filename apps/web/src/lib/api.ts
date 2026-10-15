@@ -286,8 +286,8 @@ export const api = {
    * by; admin campus-management views (`mentor-management.tsx`) call this with no
    * arguments and deliberately still see every campus, Infosys-only ones included.
    */
-  campuses: (hasCodingHoursActivity?: boolean) =>
-    apiFetch<CampusSummary[]>(`/campuses${qs({ hasCodingHoursActivity })}`),
+  campuses: (hasCodingHoursActivity?: boolean, codingHoursOnly?: boolean) =>
+    apiFetch<CampusSummary[]>(`/campuses${qs({ hasCodingHoursActivity, codingHoursOnly })}`),
 
   campusStats: (dayKey?: string) => apiFetch<CampusStats[]>(`/campuses/stats${qs({ dayKey })}`),
 

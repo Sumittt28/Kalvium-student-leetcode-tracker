@@ -79,6 +79,17 @@ export class ListCampusesQueryDto {
   @IsBoolean()
   @Transform(({ value }) => value === true || value === 'true')
   hasCodingHoursActivity?: boolean;
+
+  /**
+   * Only show campuses where Coding Hours 2.0 is explicitly enabled.
+   * Use this for assignment creation and filters where you don't want
+   * to accidentally include campuses that haven't started yet.
+   */
+  @ApiPropertyOptional({ description: 'Only campuses with Coding Hours 2.0 enabled' })
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === true || value === 'true')
+  codingHoursOnly?: boolean;
 }
 
 export class CreateCampusDto {
