@@ -96,9 +96,9 @@ function QuestionBank() {
   const [page, setPage] = useState(1);
   const [editState, setEditState] = useState<EditState | null>(null);
 
-  // Only ADMIN and MENTOR can edit questions
+  // Only ADMIN can edit questions (mentors have read-only access)
   const me = useQuery({ queryKey: ['me'], queryFn: api.me });
-  const canEdit = me.data?.role === 'ADMIN' || me.data?.role === 'MENTOR';
+  const canEdit = me.data?.role === 'ADMIN';
 
   // Switching group clears everything: filters from one group mean nothing in the other.
   useEffect(() => {

@@ -85,6 +85,15 @@ export class StudentsController {
   }
 
   /**
+   * Refuse unless the mentor may write to a student at the given campus.
+   * For create/update operations where we need to check the target campus.
+   */
+  private async assertCanWriteCampus(user: RequestUser, campusId: string): Promise<void> {
+    const allowed = await this.mentorScope.allowedCampusIds(user);
+    this.mentorScope.assertCanWriteCampus(campusId, allowed);
+  }
+
+  /**
    * `?campus=` and `?batch=` accept ids, codes (`SRM`, `A`) or aliases (`foundation`),
    * and are resolved to ids here so the service only ever filters on ids. The pair is
    * resolved *together*, so `campus=SRM&batch=A` can only mean SRM's Foundation.
@@ -163,7 +172,15 @@ export class StudentsController {
   @Roles('ADMIN', 'MENTOR')
   @Audit('STUDENT_CREATED', 'Student')
   @ApiOperation({ summary: 'Add a student' })
-  create(@Body() dto: CreateStudentDto) {
+  async create(@Body() dto: CreateStudentDto, @CurrentUser() user: RequestUser) {
+    // Mentors can only create students in their assigned campuses
+    const allowed = await this.mentorScope.allowedCampusIds(user);
+    if (allowed !== null) {
+      if (!dto.campusId) {
+        throw new BadRequestException('Mentors must specify a campus when creating a student');
+      }
+      this.mentorScope.assertCanWriteCampus(dto.campusId, allowed);
+    }
     return this.students.create(dto);
   }
 
@@ -171,7 +188,13 @@ export class StudentsController {
   @Roles('ADMIN', 'MENTOR')
   @Audit('STUDENT_UPDATED', 'Student')
   @ApiOperation({ summary: 'Update a student' })
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateStudentDto) {
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateStudentDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    // Mentors can only update students in their assigned campuses
+    await this.assertVisible(user, id);
     return this.students.update(id, dto);
   }
 
@@ -202,7 +225,18 @@ export class StudentsController {
   @Roles('ADMIN', 'MENTOR')
   @Audit('STUDENTS_BULK_UPDATED', 'Student')
   @ApiOperation({ summary: 'Reassign batch, squad or status for many students' })
-  async bulkUpdate(@Body() dto: BulkUpdateStudentsDto) {
+  async bulkUpdate(@Body() dto: BulkUpdateStudentsDto, @CurrentUser() user: RequestUser) {
+    // Mentors can only bulk update students in their assigned campuses
+    const allowed = await this.mentorScope.allowedCampusIds(user);
+    if (allowed !== null) {
+      // Verify all students are in mentor's campuses
+      const campuses = await this.students.campusesOf(dto.ids);
+      for (const campusId of campuses) {
+        if (campusId && !allowed.includes(campusId)) {
+          throw new NotFoundException('One or more students were not found');
+        }
+      }
+    }
     return {
       updated: await this.students.bulkUpdate(dto.ids, {
         squadId: dto.squadId,
@@ -236,8 +270,19 @@ export class StudentsController {
   async importStudents(
     @UploadedFile() file: UploadedExcelFile | undefined,
     @Body() dto: ImportStudentsDto,
+    @CurrentUser() user: RequestUser,
   ) {
     if (!file) throw new BadRequestException('No file was uploaded (expected field "file")');
+    // Mentors can only import students to their assigned campuses
+    if (dto.campusId) {
+      await this.assertCanWriteCampus(user, dto.campusId);
+    } else {
+      // If no campusId specified and user is mentor, reject
+      const allowed = await this.mentorScope.allowedCampusIds(user);
+      if (allowed !== null) {
+        throw new BadRequestException('Mentors must specify a campus to import to');
+      }
+    }
     return this.importer.import(file.buffer, {
       dryRun: dto.dryRun,
       updateExisting: dto.updateExisting,
@@ -248,11 +293,13 @@ export class StudentsController {
   @Post(':id/notes')
   @Roles('ADMIN', 'MENTOR')
   @ApiOperation({ summary: 'Add a mentor note to a student' })
-  addNote(
+  async addNote(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CreateNoteDto,
     @CurrentUser() user: RequestUser,
   ) {
+    // Mentors can only add notes to students in their assigned campuses
+    await this.assertVisible(user, id);
     return this.students.addNote(id, user.id, dto.body, dto.isPrivate ?? false);
   }
 

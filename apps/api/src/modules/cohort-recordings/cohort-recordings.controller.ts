@@ -57,22 +57,22 @@ export class CohortRecordingsController {
   }
 
   @Post()
-  @Roles('ADMIN', 'MENTOR')
-  @ApiOperation({ summary: 'Add a new session recording' })
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Add a new session recording (admin only — recordings are global)' })
   create(@Body() dto: CreateSessionRecordingDto) {
     return this.service.create(dto);
   }
 
   @Patch(':id')
-  @Roles('ADMIN', 'MENTOR')
-  @ApiOperation({ summary: 'Update a session recording' })
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Update a session recording (admin only)' })
   update(@Param('id') id: string, @Body() dto: UpdateSessionRecordingDto) {
     return this.service.update(id, dto);
   }
 
   @Delete(':id')
-  @Roles('ADMIN', 'MENTOR')
-  @ApiOperation({ summary: 'Delete a session recording' })
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Delete a session recording (admin only)' })
   async delete(@Param('id') id: string) {
     await this.service.delete(id);
     return { deleted: true };

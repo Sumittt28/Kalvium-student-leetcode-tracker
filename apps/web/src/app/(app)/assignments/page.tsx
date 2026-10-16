@@ -347,25 +347,28 @@ function AssignmentsPageInner() {
                 Campus <span className="text-[var(--color-danger)]">*</span>
               </span>
               <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  aria-pressed={campusChoiceMade && targetCampusId === null}
-                  onClick={() => {
-                    setTargetCampusId(null);
-                    setCampusChoiceMade(true);
-                    // A campus change invalidates any batch choice: batch ids belong to
-                    // one campus, and carrying them across would target the wrong one.
-                    setTargetBatchIds([]);
-                    setBatchChoiceMade(false);
-                  }}
-                  className={
-                    campusChoiceMade && targetCampusId === null
-                      ? 'rounded-lg bg-[var(--color-brand)] px-3 py-1.5 text-sm font-medium text-[var(--color-brand-fg)]'
-                      : 'rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm font-medium text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]'
-                  }
-                >
-                  All campuses
-                </button>
+                {/* "All campuses" is admin-only — mentors must choose their assigned campus */}
+                {isAdmin && (
+                  <button
+                    type="button"
+                    aria-pressed={campusChoiceMade && targetCampusId === null}
+                    onClick={() => {
+                      setTargetCampusId(null);
+                      setCampusChoiceMade(true);
+                      // A campus change invalidates any batch choice: batch ids belong to
+                      // one campus, and carrying them across would target the wrong one.
+                      setTargetBatchIds([]);
+                      setBatchChoiceMade(false);
+                    }}
+                    className={
+                      campusChoiceMade && targetCampusId === null
+                        ? 'rounded-lg bg-[var(--color-brand)] px-3 py-1.5 text-sm font-medium text-[var(--color-brand-fg)]'
+                        : 'rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm font-medium text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]'
+                    }
+                  >
+                    All campuses
+                  </button>
+                )}
                 {campuses.map((entry) => {
                   const isSelected = campusChoiceMade && targetCampusId === entry.id;
                   return (

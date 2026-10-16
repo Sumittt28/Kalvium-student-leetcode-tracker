@@ -42,25 +42,25 @@ export class QuestionBankController {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Write operations — ADMIN and MENTOR only
+  // Write operations — ADMIN only (mentors have read-only access)
   // ─────────────────────────────────────────────────────────────────────────────
 
   @Patch('entries/:entryId')
-  @Roles('ADMIN', 'MENTOR')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Update a question (replace problem, edit topic/pattern/role)' })
   updateEntry(@Param('entryId') entryId: string, @Body() dto: UpdateQuestionBankEntryDto) {
     return this.bank.updateEntry(entryId, dto);
   }
 
   @Delete('entries/:entryId')
-  @Roles('ADMIN', 'MENTOR')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Remove a question from a set' })
   deleteEntry(@Param('entryId') entryId: string) {
     return this.bank.deleteEntry(entryId);
   }
 
   @Post('sets/:setKey/entries')
-  @Roles('ADMIN', 'MENTOR')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Add a question to a set' })
   addEntry(@Param('setKey') setKey: string, @Body() dto: AddQuestionBankEntryDto) {
     return this.bank.addEntry(setKey, dto);

@@ -25,6 +25,10 @@ const COHORT_INFO: Record<number, { group: string; belt: string; color: 'brand' 
 export default function SessionRecordingsPage() {
   const queryClient = useQueryClient();
   
+  // Only ADMIN can manage session recordings (they're global across all campuses)
+  const me = useQuery({ queryKey: ['me'], queryFn: api.me });
+  const canEdit = me.data?.role === 'ADMIN';
+
   const { data: recordings = [], isLoading } = useQuery({
     queryKey: ['session-recordings'],
     queryFn: () => api.sessionRecordings(),
@@ -117,16 +121,18 @@ export default function SessionRecordingsPage() {
                 }
                 description={`${info.belt} students · ${recs.length} recording${recs.length !== 1 ? 's' : ''}`}
                 action={
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      setAddingToCohort(cohort);
-                      setNewRecording({ sessionDate: new Date().toISOString().split('T')[0], recordingUrl: '', topic: '' });
-                    }}
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add
-                  </Button>
+                  canEdit ? (
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        setAddingToCohort(cohort);
+                        setNewRecording({ sessionDate: new Date().toISOString().split('T')[0], recordingUrl: '', topic: '' });
+                      }}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add
+                    </Button>
+                  ) : null
                 }
               />
 
@@ -189,16 +195,18 @@ export default function SessionRecordingsPage() {
                   <div className="rounded-lg border border-dashed border-[var(--color-border)] py-8 text-center">
                     <Video className="mx-auto h-8 w-8 text-[var(--color-fg-subtle)]" />
                     <p className="mt-2 text-sm text-[var(--color-fg-muted)]">No recordings yet</p>
-                    <Button
-                      variant="ghost"
-                      className="mt-2"
-                      onClick={() => {
-                        setAddingToCohort(cohort);
-                        setNewRecording({ sessionDate: new Date().toISOString().split('T')[0], recordingUrl: '', topic: '' });
-                      }}
-                    >
-                      Add first recording
-                    </Button>
+                    {canEdit && (
+                      <Button
+                        variant="ghost"
+                        className="mt-2"
+                        onClick={() => {
+                          setAddingToCohort(cohort);
+                          setNewRecording({ sessionDate: new Date().toISOString().split('T')[0], recordingUrl: '', topic: '' });
+                        }}
+                      >
+                        Add first recording
+                      </Button>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -250,29 +258,31 @@ export default function SessionRecordingsPage() {
                                 <p className="text-sm font-medium">{rec.topic || 'Untitled Session'}</p>
                                 <p className="text-xs text-[var(--color-fg-muted)]">{formatDate(rec.sessionDate)}</p>
                               </div>
-                              <div className="flex gap-1">
-                                <button
-                                  onClick={() => {
-                                    setEditingId(rec.id);
-                                    setEditData({
-                                      sessionDate: rec.sessionDate,
-                                      recordingUrl: rec.recordingUrl,
-                                      topic: rec.topic ?? '',
-                                    });
-                                  }}
-                                  className="rounded p-1.5 text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-sunken)] hover:text-[var(--color-brand)]"
-                                >
-                                  <Edit2 className="h-4 w-4" />
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    if (confirm('Delete this recording?')) deleteMutation.mutate(rec.id);
-                                  }}
-                                  className="rounded p-1.5 text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-sunken)] hover:text-[var(--color-danger)]"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              </div>
+                              {canEdit && (
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => {
+                                      setEditingId(rec.id);
+                                      setEditData({
+                                        sessionDate: rec.sessionDate,
+                                        recordingUrl: rec.recordingUrl,
+                                        topic: rec.topic ?? '',
+                                      });
+                                    }}
+                                    className="rounded p-1.5 text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-sunken)] hover:text-[var(--color-brand)]"
+                                  >
+                                    <Edit2 className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      if (confirm('Delete this recording?')) deleteMutation.mutate(rec.id);
+                                    }}
+                                    className="rounded p-1.5 text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-sunken)] hover:text-[var(--color-danger)]"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              )}
                             </div>
                             <a
                               href={rec.recordingUrl}

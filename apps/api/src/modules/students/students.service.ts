@@ -135,6 +135,18 @@ export class StudentsService {
   }
 
   /**
+   * All distinct campus ids for a list of student ids.
+   * Used for bulk operations to verify mentor has access to all students.
+   */
+  async campusesOf(ids: string[]): Promise<(string | null)[]> {
+    const students = await this.prisma.student.findMany({
+      where: { id: { in: ids } },
+      select: { campusId: true },
+    });
+    return [...new Set(students.map((s) => s.campusId))];
+  }
+
+  /**
    * A well-formed empty page, for a caller whose scope excludes everything they asked for.
    *
    * Returned instead of running the query at all: an empty result and a 403 tell a prober
