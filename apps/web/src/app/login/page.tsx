@@ -1,8 +1,10 @@
 'use client';
 
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Eye, EyeOff } from 'lucide-react';
 
 import { api, tokenStore } from '@/lib/api';
 import { Button, Card } from '@/components/ui';
@@ -12,6 +14,7 @@ export default function LoginPage() {
   const queryClient = useQueryClient();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const login = useMutation({
     mutationFn: () => api.login(email, password),
@@ -35,9 +38,13 @@ export default function LoginPage() {
     <div className="grid min-h-screen place-items-center p-4">
       <Card className="w-full max-w-sm p-6">
         <div className="mb-6 flex items-center gap-2.5">
-          <div className="grid size-9 place-items-center rounded-lg bg-[var(--color-brand)] text-sm font-bold text-[var(--color-brand-fg)]">
-            DS
-          </div>
+          <Image
+            src="/kalvium-logo.png"
+            alt="Kalvium"
+            width={36}
+            height={36}
+            className="rounded-lg"
+          />
           <div>
             <h1 className="text-base font-semibold">Coding Hours Tracker</h1>
             <p className="text-xs text-[var(--color-fg-subtle)]">Sign in with your Kalvium email</p>
@@ -65,16 +72,26 @@ export default function LoginPage() {
             <label htmlFor="password" className="mb-1.5 block text-xs font-medium">
               Password
             </label>
-            <input
-              id="password"
-              type="password"
-              required
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)]"
-              placeholder="••••••••"
-            />
+            <div className="relative">
+              <input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                required
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 pr-10 text-sm outline-none focus:border-[var(--color-brand)]"
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-fg-subtle)] hover:text-[var(--color-fg-muted)] transition-colors"
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </div>
           </div>
 
           {login.isError ? (
