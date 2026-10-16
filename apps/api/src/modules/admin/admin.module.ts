@@ -519,15 +519,12 @@ export class AdminController {
   @Audit('ADMIN_ACCOUNT_CREATED', 'User')
   @ApiOperation({
     summary: 'Create a new admin account (super admin only)',
-    description:
-      'Creates an admin account with a temporary password. Only super admins can create other admins.',
+    description: 'Creates an admin account with a temporary password.',
   })
   async createAdmin(@Body() dto: CreateAdminDto, @CurrentUser() user: RequestUser) {
-    // Only super admin can create new admins
     if (!user.isSuperAdmin) {
-      throw new BadRequestException('Only super admins can create new admin accounts.');
+      throw new BadRequestException('Only super admin can create new admin accounts.');
     }
-
     const email = dto.email.toLowerCase().trim();
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) {
@@ -562,28 +559,34 @@ export class AdminController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Remove an admin account (super admin only)',
-    description: 'Downgrades an admin to a regular user. Super admins cannot be removed.',
+    description: 'Downgrades an admin to a regular user. Protected accounts cannot be removed.',
   })
   async removeAdmin(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: RequestUser,
   ) {
-    // Only super admin can remove admins
     if (!user.isSuperAdmin) {
-      throw new BadRequestException('Only super admins can remove admin accounts.');
+      throw new BadRequestException('Only super admin can remove admin accounts.');
     }
+
+    // Protected accounts that cannot be removed
+    const protectedEmails = [
+      'vishnu.murali@kalvium.com',
+      'sumit.singh@kalvium.com', 
+      'admin@kalvium.com',
+    ];
 
     const admin = await this.prisma.user.findUnique({
       where: { id },
-      select: { id: true, role: true, isSuperAdmin: true, email: true },
+      select: { id: true, role: true, email: true },
     });
 
     if (!admin) throw new NotFoundException(`User ${id} was not found`);
     if (admin.role !== 'ADMIN') {
       throw new BadRequestException(`User ${admin.email} is not an admin.`);
     }
-    if (admin.isSuperAdmin) {
-      throw new BadRequestException('Super admins cannot be removed.');
+    if (protectedEmails.includes(admin.email.toLowerCase())) {
+      throw new BadRequestException('This account is protected and cannot be removed.');
     }
     if (admin.id === user.id) {
       throw new BadRequestException('You cannot remove your own admin access.');

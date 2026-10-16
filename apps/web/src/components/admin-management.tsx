@@ -34,6 +34,10 @@ export function AdminManagement() {
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
 
+  // Get current user to check if super admin
+  const me = useQuery({ queryKey: ['me'], queryFn: api.me });
+  const isSuperAdmin = me.data?.isSuperAdmin ?? false;
+
   const admins = useQuery({
     queryKey: ['admins'],
     queryFn: api.listAdmins,
@@ -43,7 +47,7 @@ export function AdminManagement() {
     mutationFn: (data: { name: string; email: string }) => api.addAdmin(data),
     onSuccess: (result) => {
       toast.success('Admin added', { 
-        description: `${result.name} has been added. Temp password: ${result.tempPassword}` 
+        description: `${result.name} added. Temp password: ${result.tempPassword}` 
       });
       void queryClient.invalidateQueries({ queryKey: ['admins'] });
       setShowAddModal(false);
@@ -111,15 +115,17 @@ export function AdminManagement() {
           }
           description="Users with admin access to this platform"
           action={
-            <Button variant="primary" onClick={() => setShowAddModal(true)}>
-              <UserPlus className="size-4" />
-              Add Admin
-            </Button>
+            isSuperAdmin ? (
+              <Button variant="primary" onClick={() => setShowAddModal(true)}>
+                <UserPlus className="size-4" />
+                Add Admin
+              </Button>
+            ) : null
           }
         />
 
         {admins.isLoading ? (
-          <TableSkeleton rows={3} cols={5} />
+          <TableSkeleton rows={3} cols={isSuperAdmin ? 5 : 4} />
         ) : !admins.data || admins.data.length === 0 ? (
           <EmptyState
             title="No admins found"
@@ -133,7 +139,7 @@ export function AdminManagement() {
                 <Th>Email</Th>
                 <Th>Added On</Th>
                 <Th>Last Login</Th>
-                <Th className="text-right">Actions</Th>
+                {isSuperAdmin && <Th className="text-right">Actions</Th>}
               </tr>
             </thead>
             <tbody>
@@ -182,24 +188,26 @@ export function AdminManagement() {
                       : <span className="text-[var(--color-fg-subtle)]">Never</span>
                     }
                   </Td>
-                  <Td className="text-right">
-                    {isProtected ? (
-                      <span className="text-xs text-[var(--color-fg-subtle)]">Protected</span>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        className="text-xs text-[var(--color-danger)] hover:bg-[var(--color-danger-soft)]"
-                        onClick={() => {
-                          if (confirm(`Remove ${admin.name} from admin access?`)) {
-                            removeAdmin.mutate(admin.id);
-                          }
-                        }}
-                      >
-                        <Trash2 className="size-3.5" />
-                        Remove
-                      </Button>
-                    )}
-                  </Td>
+                  {isSuperAdmin && (
+                    <Td className="text-right">
+                      {isProtected ? (
+                        <span className="text-xs text-[var(--color-fg-subtle)]">Protected</span>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          className="text-xs text-[var(--color-danger)] hover:bg-[var(--color-danger-soft)]"
+                          onClick={() => {
+                            if (confirm(`Remove ${admin.name} from admin access?`)) {
+                              removeAdmin.mutate(admin.id);
+                            }
+                          }}
+                        >
+                          <Trash2 className="size-3.5" />
+                          Remove
+                        </Button>
+                      )}
+                    </Td>
+                  )}
                 </tr>
               );
               })}
