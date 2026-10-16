@@ -262,14 +262,19 @@ function GroupedAssignmentRow({
                 <Badge tone="neutral">All</Badge>
               )}
               {sortedTargets[0]?.batchCode ? (
-                <BatchChip
-                  code={sortedTargets[0].batchCode}
-                  name={sortedTargets[0].batchName}
-                />
-              ) : null}
-              {sortedTargets[0]?.cohort ? (
-                <span className="text-xs text-[var(--color-fg-muted)]">
-                  C{sortedTargets[0].cohort}
+                <span className="inline-flex items-center gap-1">
+                  <BatchChip
+                    code={sortedTargets[0].batchCode}
+                    name={sortedTargets[0].batchName}
+                  />
+                  {/* Show cohort: C1/C2 for G1, C3 for G2 */}
+                  <span className="text-xs text-[var(--color-fg-muted)]">
+                    {sortedTargets[0].cohort
+                      ? `C${sortedTargets[0].cohort}`
+                      : sortedTargets[0].batchCode === 'G2'
+                        ? 'C3'
+                        : ''}
+                  </span>
                 </span>
               ) : null}
             </span>
@@ -333,13 +338,16 @@ function GroupedAssignmentRow({
                   <Badge tone="neutral">All campuses</Badge>
                 )}
                 {target.batchCode ? (
-                  <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1">
                     <BatchChip code={target.batchCode} name={target.batchName} />
-                    {target.cohort ? (
-                      <span className="text-xs text-[var(--color-fg-muted)]">
-                        Cohort {target.cohort}
-                      </span>
-                    ) : null}
+                    {/* Show cohort: C1/C2 for G1, C3 for G2 */}
+                    <span className="text-xs text-[var(--color-fg-muted)]">
+                      {target.cohort
+                        ? `C${target.cohort}`
+                        : target.batchCode === 'G2'
+                          ? 'C3'
+                          : ''}
+                    </span>
                   </span>
                 ) : (
                   <Badge tone="neutral">All batches</Badge>
