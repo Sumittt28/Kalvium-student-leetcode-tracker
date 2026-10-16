@@ -49,13 +49,16 @@ export function AdminManagement() {
               <User className="size-6 text-[var(--color-brand)]" />
             </div>
             <div>
-              <p className="font-semibold">Sumit Kumar Singh</p>
+              <div className="flex items-center gap-2">
+                <p className="font-semibold">Vishnu Murali</p>
+                <Badge tone="brand" className="text-xs">Owner</Badge>
+              </div>
               <a 
-                href="mailto:sumit.singh@kalvium.com" 
+                href="mailto:vishnu.murali@kalvium.com" 
                 className="flex items-center gap-1.5 text-sm text-[var(--color-brand)] hover:underline"
               >
                 <Mail className="size-3.5" />
-                sumit.singh@kalvium.com
+                vishnu.murali@kalvium.com
               </a>
             </div>
           </div>
@@ -92,14 +95,20 @@ export function AdminManagement() {
               </tr>
             </thead>
             <tbody>
-              {admins.data.map((admin: Admin) => (
+              {admins.data.map((admin: Admin) => {
+                // Determine role badge based on email
+                const roleBadge = admin.email === 'vishnu.murali@kalvium.com' 
+                  ? <Badge tone="brand" className="text-xs">Owner</Badge>
+                  : admin.email === 'sumit.singh@kalvium.com'
+                    ? <Badge tone="info" className="text-xs">Maintainer</Badge>
+                    : null;
+                
+                return (
                 <tr key={admin.id} className="transition hover:bg-[var(--color-surface-sunken)]">
                   <Td className="font-medium">
                     <span className="flex items-center gap-2">
                       {admin.name}
-                      {admin.isSuperAdmin && (
-                        <Badge tone="brand" className="text-xs">Owner</Badge>
-                      )}
+                      {roleBadge}
                     </span>
                   </Td>
                   <Td>
@@ -130,7 +139,8 @@ export function AdminManagement() {
                     }
                   </Td>
                 </tr>
-              ))}
+              );
+              })}
             </tbody>
           </TableShell>
         )}
