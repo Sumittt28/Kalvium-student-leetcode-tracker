@@ -1,18 +1,14 @@
 'use client';
 
-import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Shield, ShieldAlert, Trash2, UserPlus } from 'lucide-react';
-import { toast } from 'sonner';
+import { useQuery } from '@tanstack/react-query';
+import { Mail, Phone, Shield, User } from 'lucide-react';
 
 import { api } from '@/lib/api';
 import {
   Badge,
-  Button,
   Card,
   CardHeader,
   EmptyState,
-  Modal,
   TableShell,
   TableSkeleton,
   Td,
@@ -25,42 +21,48 @@ interface Admin {
   name: string;
   isSuperAdmin: boolean;
   createdAt: string;
+  lastLoginAt?: string | null;
 }
 
-export function AdminManagement({ isSuperAdmin }: { isSuperAdmin: boolean }) {
-  const queryClient = useQueryClient();
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newEmail, setNewEmail] = useState('');
-  const [newName, setNewName] = useState('');
-
+export function AdminManagement() {
   const admins = useQuery({
     queryKey: ['admins'],
     queryFn: api.listAdmins,
   });
 
-  const addAdmin = useMutation({
-    mutationFn: (data: { email: string; name: string }) => api.addAdmin(data),
-    onSuccess: () => {
-      toast.success('Admin added successfully');
-      void queryClient.invalidateQueries({ queryKey: ['admins'] });
-      setShowAddModal(false);
-      setNewEmail('');
-      setNewName('');
-    },
-    onError: (error: Error) => toast.error('Failed to add admin', { description: error.message }),
-  });
-
-  const removeAdmin = useMutation({
-    mutationFn: (id: string) => api.removeAdmin(id),
-    onSuccess: () => {
-      toast.success('Admin removed');
-      void queryClient.invalidateQueries({ queryKey: ['admins'] });
-    },
-    onError: (error: Error) => toast.error('Failed to remove admin', { description: error.message }),
-  });
-
   return (
-    <>
+    <div className="space-y-5">
+      {/* Contact Information */}
+      <Card>
+        <CardHeader
+          title={
+            <span className="flex items-center gap-2">
+              <Phone className="size-4" />
+              Tool Support Contact
+            </span>
+          }
+          description="For any tool-related issues or questions, contact:"
+        />
+        <div className="p-5">
+          <div className="flex items-center gap-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-sunken)] p-4">
+            <div className="grid size-12 place-items-center rounded-full bg-[var(--color-brand-soft)]">
+              <User className="size-6 text-[var(--color-brand)]" />
+            </div>
+            <div>
+              <p className="font-semibold">Sumit Kumar Singh</p>
+              <a 
+                href="mailto:sumit.singh@kalvium.com" 
+                className="flex items-center gap-1.5 text-sm text-[var(--color-brand)] hover:underline"
+              >
+                <Mail className="size-3.5" />
+                sumit.singh@kalvium.com
+              </a>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Administrators List */}
       <Card>
         <CardHeader
           title={
@@ -70,14 +72,6 @@ export function AdminManagement({ isSuperAdmin }: { isSuperAdmin: boolean }) {
             </span>
           }
           description="Users with admin access to this platform"
-          action={
-            isSuperAdmin ? (
-              <Button variant="primary" onClick={() => setShowAddModal(true)}>
-                <UserPlus className="size-4" />
-                Add Admin
-              </Button>
-            ) : null
-          }
         />
 
         {admins.isLoading ? (
@@ -85,7 +79,7 @@ export function AdminManagement({ isSuperAdmin }: { isSuperAdmin: boolean }) {
         ) : !admins.data || admins.data.length === 0 ? (
           <EmptyState
             title="No admins found"
-            description="Add administrators to manage the platform."
+            description="No administrator accounts exist yet."
           />
         ) : (
           <TableShell>
@@ -93,109 +87,54 @@ export function AdminManagement({ isSuperAdmin }: { isSuperAdmin: boolean }) {
               <tr>
                 <Th>Name</Th>
                 <Th>Email</Th>
-                <Th>Role</Th>
-                <Th>Added</Th>
-                {isSuperAdmin ? <Th className="text-right">Actions</Th> : null}
+                <Th>Added On</Th>
+                <Th>Last Login</Th>
               </tr>
             </thead>
             <tbody>
               {admins.data.map((admin: Admin) => (
                 <tr key={admin.id} className="transition hover:bg-[var(--color-surface-sunken)]">
-                  <Td className="font-medium">{admin.name}</Td>
-                  <Td className="text-[var(--color-fg-muted)]">{admin.email}</Td>
-                  <Td>
-                    {admin.isSuperAdmin ? (
-                      <Badge tone="brand" className="flex items-center gap-1 w-fit">
-                        <ShieldAlert className="size-3" />
-                        Super Admin
-                      </Badge>
-                    ) : (
-                      <Badge tone="info">Admin</Badge>
-                    )}
-                  </Td>
-                  <Td className="text-[var(--color-fg-muted)] text-xs">
-                    {new Date(admin.createdAt).toLocaleDateString()}
-                  </Td>
-                  {isSuperAdmin ? (
-                    <Td className="text-right">
-                      {!admin.isSuperAdmin ? (
-                        <Button
-                          variant="ghost"
-                          className="text-xs text-[var(--color-danger)]"
-                          onClick={() => {
-                            if (confirm(`Remove ${admin.name} as admin?`)) {
-                              removeAdmin.mutate(admin.id);
-                            }
-                          }}
-                        >
-                          <Trash2 className="size-3.5" />
-                          Remove
-                        </Button>
-                      ) : (
-                        <span className="text-xs text-[var(--color-fg-subtle)]">Protected</span>
+                  <Td className="font-medium">
+                    <span className="flex items-center gap-2">
+                      {admin.name}
+                      {admin.isSuperAdmin && (
+                        <Badge tone="brand" className="text-xs">Owner</Badge>
                       )}
-                    </Td>
-                  ) : null}
+                    </span>
+                  </Td>
+                  <Td>
+                    <a 
+                      href={`mailto:${admin.email}`}
+                      className="text-[var(--color-fg-muted)] hover:text-[var(--color-brand)] hover:underline"
+                    >
+                      {admin.email}
+                    </a>
+                  </Td>
+                  <Td className="text-[var(--color-fg-muted)] text-sm">
+                    {new Date(admin.createdAt).toLocaleDateString('en-IN', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                  </Td>
+                  <Td className="text-[var(--color-fg-muted)] text-sm">
+                    {admin.lastLoginAt 
+                      ? new Date(admin.lastLoginAt).toLocaleDateString('en-IN', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : <span className="text-[var(--color-fg-subtle)]">Never</span>
+                    }
+                  </Td>
                 </tr>
               ))}
             </tbody>
           </TableShell>
         )}
       </Card>
-
-      {/* Add Admin Modal */}
-      <Modal
-        open={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        title="Add New Administrator"
-      >
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            addAdmin.mutate({ email: newEmail.trim(), name: newName.trim() });
-          }}
-          className="space-y-4"
-        >
-          <div>
-            <label className="mb-1.5 block text-xs font-medium">Name</label>
-            <input
-              type="text"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="John Doe"
-              required
-              className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)]"
-            />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-xs font-medium">Email</label>
-            <input
-              type="email"
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-              placeholder="email@kalvium.com"
-              required
-              className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)]"
-            />
-          </div>
-          <p className="text-xs text-[var(--color-fg-muted)]">
-            The new admin will receive a temporary password and must change it on first login.
-          </p>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={() => setShowAddModal(false)}>
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              loading={addAdmin.isPending}
-              disabled={!newEmail.trim() || !newName.trim()}
-            >
-              Add Admin
-            </Button>
-          </div>
-        </form>
-      </Modal>
-    </>
+    </div>
   );
 }

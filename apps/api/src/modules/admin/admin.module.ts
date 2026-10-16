@@ -509,6 +509,7 @@ export class AdminController {
         email: true,
         isSuperAdmin: true,
         createdAt: true,
+        lastLoginAt: true,
       },
       orderBy: [{ isSuperAdmin: 'desc' }, { name: 'asc' }],
     });

@@ -898,6 +898,7 @@ export interface AdminAccountRow {
   email: string;
   isSuperAdmin: boolean;
   createdAt: string;
+  lastLoginAt: string | null;
 }
 
 /** A newly created admin. */

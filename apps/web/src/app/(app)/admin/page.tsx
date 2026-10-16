@@ -3,7 +3,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { ShieldAlert, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api } from '@/lib/api';
@@ -31,7 +30,6 @@ export default function AdminPage() {
   // Check if user has admin access
   const me = useQuery({ queryKey: ['me'], queryFn: api.me });
   const isAdmin = me.data?.role === 'ADMIN';
-  const isSuperAdmin = me.data?.isSuperAdmin ?? false;
 
   // Redirect non-admins to dashboard
   useEffect(() => {
@@ -97,23 +95,15 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-5">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Admin Panel</h1>
-          <p className="text-sm text-[var(--color-fg-muted)]">
-            Manage admins, mentors, student logins, and system health.
-          </p>
-        </div>
-        {isSuperAdmin && (
-          <Badge tone="brand" className="flex items-center gap-1">
-            <ShieldAlert className="size-3.5" />
-            Super Admin
-          </Badge>
-        )}
+      <header>
+        <h1 className="text-xl font-semibold tracking-tight">Admin Panel</h1>
+        <p className="text-sm text-[var(--color-fg-muted)]">
+          Manage administrators, mentors, student logins, and system health.
+        </p>
       </header>
 
-      {/* Admin Management - Super Admin only for editing */}
-      <AdminManagement isSuperAdmin={isSuperAdmin} />
+      {/* Administrators */}
+      <AdminManagement />
 
       {/* Mentor Management */}
       <MentorManagement />
