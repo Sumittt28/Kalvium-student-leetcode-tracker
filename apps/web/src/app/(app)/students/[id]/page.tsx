@@ -198,7 +198,7 @@ export default function StudentProfilePage({ params }: { params: Promise<{ id: s
           tone="info"
         />
         <StatTile
-          label="Current DSA streak"
+          label="Current streak"
           value={<StreakFlame streak={data.metrics.currentDsaStreak} />}
           hint={`Longest ${data.metrics.longestDsaStreak} days · ≥1 problem/day`}
           tone="warning"

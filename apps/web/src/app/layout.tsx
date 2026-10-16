@@ -6,8 +6,8 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'DSA Tracker — Kalvium',
-    template: '%s · DSA Tracker',
+    default: 'Coding Hours Tracker — Kalvium',
+    template: '%s · Coding Hours',
   },
   description:
     'Automated LeetCode progress tracking, analytics and leaderboards for the Kalvium DSA mastery programme.',

@@ -119,7 +119,7 @@ export default function EmailReportsPage() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Email Reports</h1>
           <p className="text-sm text-[var(--color-fg-muted)]">
-            Daily DSA assignment reporting, follow-up, and mentor-approved email delivery.
+            Daily Coding Hours assignment reporting, follow-up, and mentor-approved email delivery.
             {report?.summary.batchName ? ` Showing ${report.summary.batchName}.` : ''}
           </p>
         </div>

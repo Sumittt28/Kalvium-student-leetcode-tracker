@@ -39,7 +39,7 @@ export default function LoginPage() {
             DS
           </div>
           <div>
-            <h1 className="text-base font-semibold">DSA Tracker</h1>
+            <h1 className="text-base font-semibold">Coding Hours Tracker</h1>
             <p className="text-xs text-[var(--color-fg-subtle)]">Sign in with your Kalvium email</p>
           </div>
         </div>
