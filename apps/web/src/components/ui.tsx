@@ -184,10 +184,17 @@ export function Th({ className, ...props }: HTMLAttributes<HTMLTableCellElement>
   );
 }
 
-export function Td({ className, ...props }: HTMLAttributes<HTMLTableCellElement>) {
+export function Td({
+  className,
+  colSpan,
+  rowSpan,
+  ...props
+}: HTMLAttributes<HTMLTableCellElement> & { colSpan?: number; rowSpan?: number }) {
   return (
     <td
       className={cn('border-b border-[var(--color-border)] px-3 py-2.5 align-middle', className)}
+      colSpan={colSpan}
+      rowSpan={rowSpan}
       {...props}
     />
   );

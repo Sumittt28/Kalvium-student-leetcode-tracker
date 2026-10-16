@@ -1,9 +1,9 @@
 'use client';
 
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Settings2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, Settings2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { QUESTION_BANK_GROUP_LABELS, type AssignmentSummary, type QuestionBankGroup, type QuestionBankSetDto } from '@dsa/shared';
 
@@ -48,6 +48,412 @@ function bankSetLabel(set: QuestionBankSetDto): string {
   return set.group === 'GROUP_1'
     ? `Belt ${set.belt} · Week ${set.week} · Day ${set.day}`
     : `Week ${set.week} · ${set.weekday} · Day ${set.day}`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Assignment Grouping for History View
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A group of assignments that share the same curriculum set (date + topic + problems).
+ * Visual grouping only — each target is still a real assignment record.
+ */
+interface AssignmentGroup {
+  /** Unique key for this group: dayKey|topic|problemId1,problemId2,... */
+  groupKey: string;
+  /** The common date for all assignments in this group */
+  dayKey: string;
+  /** The common topic/curriculum context */
+  topic: string | null;
+  /** Programme group extracted from topic: 'G1', 'G2', or null if undetermined */
+  programmeGroup: 'G1' | 'G2' | null;
+  /** Curriculum metadata extracted from topic */
+  curriculumLabel: string | null;
+  /** The common problems (same for all targets) */
+  problems: AssignmentSummary['problems'];
+  /** Individual assignment targets within this group */
+  targets: AssignmentSummary[];
+  /** Total distinct student count across all targets */
+  totalStudents: number;
+}
+
+/**
+ * Extracts programme group and curriculum label from the topic string.
+ * Group 1 topics: "Group 1 · Belt X · Week Y · Day Z"
+ * Group 2 topics: "Group 2 · Week X · Weekday · Day Y"
+ */
+function parseTopicMetadata(topic: string | null): {
+  programmeGroup: 'G1' | 'G2' | null;
+  curriculumLabel: string | null;
+} {
+  if (!topic) return { programmeGroup: null, curriculumLabel: null };
+  
+  // Check for Group 1 pattern: "Group 1 · Belt X · Week Y · Day Z"
+  const g1Match = topic.match(/^Group\s*1\s*[·•]\s*(.+)$/i);
+  if (g1Match) {
+    return { programmeGroup: 'G1', curriculumLabel: g1Match[1]!.trim() };
+  }
+  
+  // Check for Group 2 pattern: "Group 2 · Week X · Weekday · Day Y"
+  const g2Match = topic.match(/^Group\s*2\s*[·•]\s*(.+)$/i);
+  if (g2Match) {
+    return { programmeGroup: 'G2', curriculumLabel: g2Match[1]!.trim() };
+  }
+  
+  return { programmeGroup: null, curriculumLabel: null };
+}
+
+/**
+ * Creates a deterministic group key from assignment properties.
+ * Two assignments with the same group key have identical curriculum content.
+ */
+function makeGroupKey(assignment: AssignmentSummary): string {
+  const problemIds = assignment.problems.map((p) => p.id).join(',');
+  // Include topic for curriculum context, even if problems are the same
+  const topicKey = assignment.topic ?? '';
+  return `${assignment.dayKey}|${topicKey}|${problemIds}`;
+}
+
+/**
+ * Groups assignments by their curriculum content (date + topic + ordered problems).
+ * Returns groups sorted by date descending, with targets within each group.
+ */
+function groupAssignments(assignments: AssignmentSummary[]): AssignmentGroup[] {
+  const groups = new Map<string, AssignmentGroup>();
+  
+  for (const assignment of assignments) {
+    const groupKey = makeGroupKey(assignment);
+    const existing = groups.get(groupKey);
+    
+    if (existing) {
+      existing.targets.push(assignment);
+      existing.totalStudents += assignment.studentCount;
+    } else {
+      const { programmeGroup, curriculumLabel } = parseTopicMetadata(assignment.topic);
+      groups.set(groupKey, {
+        groupKey,
+        dayKey: assignment.dayKey,
+        topic: assignment.topic,
+        programmeGroup,
+        curriculumLabel,
+        problems: assignment.problems,
+        targets: [assignment],
+        totalStudents: assignment.studentCount,
+      });
+    }
+  }
+  
+  // Sort groups by date descending, then by topic
+  return Array.from(groups.values()).sort((a, b) => {
+    const dateCompare = b.dayKey.localeCompare(a.dayKey);
+    if (dateCompare !== 0) return dateCompare;
+    return (a.topic ?? '').localeCompare(b.topic ?? '');
+  });
+}
+
+/**
+ * Expandable row component for a grouped assignment set.
+ */
+function GroupedAssignmentRow({
+  group,
+  isAdmin,
+  onRetarget,
+}: {
+  group: AssignmentGroup;
+  isAdmin: boolean;
+  onRetarget: (assignment: AssignmentSummary) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const hasMultipleTargets = group.targets.length > 1;
+  
+  // Sort targets: by campus name, then by batch code, then by cohort
+  const sortedTargets = useMemo(
+    () =>
+      [...group.targets].sort((a, b) => {
+        const campusCompare = (a.campusName ?? '').localeCompare(b.campusName ?? '');
+        if (campusCompare !== 0) return campusCompare;
+        const batchCompare = (a.batchCode ?? '').localeCompare(b.batchCode ?? '');
+        if (batchCompare !== 0) return batchCompare;
+        return (a.cohort ?? 0) - (b.cohort ?? 0);
+      }),
+    [group.targets],
+  );
+
+  return (
+    <>
+      {/* Parent row - always visible */}
+      <tr
+        className={`transition ${hasMultipleTargets ? 'cursor-pointer hover:bg-[var(--color-surface-sunken)]' : 'hover:bg-[var(--color-surface-sunken)]'}`}
+        onClick={() => hasMultipleTargets && setExpanded(!expanded)}
+      >
+        {/* Expand/collapse indicator + Date */}
+        <Td className="font-medium tabular-nums">
+          <span className="inline-flex items-center gap-1.5">
+            {hasMultipleTargets ? (
+              <button
+                type="button"
+                className="rounded p-0.5 hover:bg-[var(--color-surface-raised)]"
+                aria-expanded={expanded}
+                aria-label={expanded ? 'Collapse targets' : 'Expand targets'}
+              >
+                {expanded ? (
+                  <ChevronDown className="size-4 text-[var(--color-fg-muted)]" />
+                ) : (
+                  <ChevronRight className="size-4 text-[var(--color-fg-muted)]" />
+                )}
+              </button>
+            ) : (
+              <span className="size-4" /> // Spacer for alignment
+            )}
+            {group.dayKey}
+          </span>
+        </Td>
+        
+        {/* Programme Group Badge */}
+        <Td>
+          {group.programmeGroup ? (
+            <Badge tone={group.programmeGroup === 'G1' ? 'brand' : 'info'}>
+              {group.programmeGroup}
+            </Badge>
+          ) : (
+            <span className="text-[var(--color-fg-muted)]">—</span>
+          )}
+        </Td>
+        
+        {/* Curriculum Context / Topic */}
+        <Td className="text-[var(--color-fg-muted)]">
+          {group.curriculumLabel ?? group.topic ?? '—'}
+        </Td>
+        
+        {/* Problems - displayed once for the group */}
+        <Td>
+          <div className="flex flex-wrap gap-1.5">
+            {group.problems.map((problem) => (
+              <a
+                key={problem.id}
+                href={problem.url}
+                target="_blank"
+                rel="noreferrer noopener"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-border)] px-2 py-0.5 text-xs hover:border-[var(--color-brand)]"
+              >
+                {problem.title}
+                <DifficultyBadge difficulty={problem.difficulty} />
+              </a>
+            ))}
+          </div>
+        </Td>
+        
+        {/* Targets summary */}
+        <Td>
+          {hasMultipleTargets ? (
+            <Badge tone="neutral">
+              {group.targets.length} target{group.targets.length !== 1 ? 's' : ''}
+            </Badge>
+          ) : (
+            // Single target - show inline
+            <span className="inline-flex items-center gap-1.5">
+              {sortedTargets[0]?.campusCode ? (
+                <CampusChip
+                  code={sortedTargets[0].campusCode}
+                  name={sortedTargets[0].campusName}
+                />
+              ) : (
+                <Badge tone="neutral">All</Badge>
+              )}
+              {sortedTargets[0]?.batchCode ? (
+                <BatchChip
+                  code={sortedTargets[0].batchCode}
+                  name={sortedTargets[0].batchName}
+                />
+              ) : null}
+              {sortedTargets[0]?.cohort ? (
+                <span className="text-xs text-[var(--color-fg-muted)]">
+                  C{sortedTargets[0].cohort}
+                </span>
+              ) : null}
+            </span>
+          )}
+        </Td>
+        
+        {/* Student count */}
+        <Td className="text-right tabular-nums text-[var(--color-fg-muted)]">
+          {group.totalStudents}
+        </Td>
+        
+        {/* Problem count */}
+        <Td className="text-right tabular-nums">{group.problems.length}</Td>
+        
+        {/* Actions - only for single target */}
+        {isAdmin ? (
+          <Td className="text-right">
+            {!hasMultipleTargets && sortedTargets[0] ? (
+              <Button
+                variant="ghost"
+                className="text-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRetarget(sortedTargets[0]!);
+                }}
+              >
+                <Settings2 className="size-3.5" aria-hidden />
+                Change target
+              </Button>
+            ) : null}
+          </Td>
+        ) : null}
+      </tr>
+      
+      {/* Expanded target rows */}
+      {expanded &&
+        sortedTargets.map((target) => (
+          <tr
+            key={target.id}
+            className="bg-[var(--color-surface-sunken)] transition hover:bg-[var(--color-surface-raised)]"
+          >
+            {/* Indent spacer */}
+            <Td className="border-l-2 border-l-[var(--color-brand-soft)] pl-8">
+              <span className="text-xs text-[var(--color-fg-subtle)]">↳</span>
+            </Td>
+            
+            {/* Empty cell for group badge column */}
+            <Td />
+            
+            {/* Target campus/batch/cohort info */}
+            <Td colSpan={2}>
+              <span className="inline-flex flex-wrap items-center gap-2">
+                {target.campusCode ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <CampusChip code={target.campusCode} name={target.campusName} />
+                    <span className="text-xs text-[var(--color-fg-muted)]">
+                      {target.campusName}
+                    </span>
+                  </span>
+                ) : (
+                  <Badge tone="neutral">All campuses</Badge>
+                )}
+                {target.batchCode ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <BatchChip code={target.batchCode} name={target.batchName} />
+                    {target.cohort ? (
+                      <span className="text-xs text-[var(--color-fg-muted)]">
+                        Cohort {target.cohort}
+                      </span>
+                    ) : null}
+                  </span>
+                ) : (
+                  <Badge tone="neutral">All batches</Badge>
+                )}
+                {target.audienceChangedAt ? (
+                  <span
+                    className="text-xs text-[var(--color-fg-subtle)]"
+                    title={`Originally ${target.originalCampusName ?? 'All campuses'} — ${target.originalBatchName ?? 'All batches'}`}
+                  >
+                    (retargeted)
+                  </span>
+                ) : null}
+              </span>
+            </Td>
+            
+            {/* Empty cell for targets column */}
+            <Td />
+            
+            {/* Student count for this target */}
+            <Td className="text-right tabular-nums text-[var(--color-fg-muted)]">
+              {target.studentCount}
+            </Td>
+            
+            {/* Empty cell for problem count column */}
+            <Td />
+            
+            {/* Actions for this target */}
+            {isAdmin ? (
+              <Td className="text-right">
+                <Button
+                  variant="ghost"
+                  className="text-xs"
+                  onClick={() => onRetarget(target)}
+                >
+                  <Settings2 className="size-3.5" aria-hidden />
+                  Change target
+                </Button>
+              </Td>
+            ) : null}
+          </tr>
+        ))}
+    </>
+  );
+}
+
+/**
+ * The Assignment History card with grouped view.
+ * Groups identical curriculum sets and shows targets as expandable rows.
+ */
+function AssignmentHistoryCard({
+  assignments,
+  isLoading,
+  error,
+  isAdmin,
+  onRetry,
+  onRetarget,
+}: {
+  assignments: AssignmentSummary[];
+  isLoading: boolean;
+  error: Error | null;
+  isAdmin: boolean;
+  onRetry: () => void;
+  onRetarget: (assignment: AssignmentSummary) => void;
+}) {
+  // Memoize the grouping to avoid recalculating on every render
+  const groups = useMemo(() => groupAssignments(assignments), [assignments]);
+  
+  return (
+    <Card>
+      <CardHeader
+        title="Assignment history"
+        description={
+          groups.length > 0
+            ? `${assignments.length} assignment${assignments.length !== 1 ? 's' : ''} across ${groups.length} curriculum set${groups.length !== 1 ? 's' : ''}`
+            : undefined
+        }
+      />
+      {isLoading ? (
+        <TableSkeleton rows={8} cols={8} />
+      ) : error ? (
+        <ErrorState error={error} onRetry={onRetry} />
+      ) : assignments.length === 0 ? (
+        <EmptyState
+          title="No assignments yet"
+          description="Create the first one so the sync engine knows what to check."
+        />
+      ) : (
+        <TableShell>
+          <thead>
+            <tr>
+              <Th style={{ width: '120px' }}>Date</Th>
+              <Th style={{ width: '60px' }}>Group</Th>
+              <Th>Curriculum</Th>
+              <Th>Problems</Th>
+              <Th style={{ width: '120px' }}>Targets</Th>
+              <Th className="text-right" style={{ width: '80px' }}>Students</Th>
+              <Th className="text-right" style={{ width: '60px' }}>Count</Th>
+              {isAdmin ? <Th className="text-right" style={{ width: '120px' }}>Actions</Th> : null}
+            </tr>
+          </thead>
+          <tbody>
+            {groups.map((group) => (
+              <GroupedAssignmentRow
+                key={group.groupKey}
+                group={group}
+                isAdmin={isAdmin}
+                onRetarget={onRetarget}
+              />
+            ))}
+          </tbody>
+        </TableShell>
+      )}
+    </Card>
+  );
 }
 
 function AssignmentsPageInner() {
@@ -785,115 +1191,14 @@ function AssignmentsPageInner() {
         </Card>
       ) : null}
 
-      <Card>
-        <CardHeader title="Assignment history" />
-        {history.isLoading ? (
-          <TableSkeleton rows={8} cols={4} />
-        ) : history.error ? (
-          <ErrorState error={history.error} onRetry={() => void history.refetch()} />
-        ) : !history.data || history.data.items.length === 0 ? (
-          <EmptyState
-            title="No assignments yet"
-            description="Create the first one so the sync engine knows what to check."
-          />
-        ) : (
-          <TableShell>
-            <thead>
-              <tr>
-                <Th>Date</Th>
-                <Th>Campus</Th>
-                <Th>Batch</Th>
-                <Th>Topic</Th>
-                <Th>Problems</Th>
-                <Th className="text-right">Students</Th>
-                <Th className="text-right">Count</Th>
-                {isAdmin ? <Th className="text-right">Actions</Th> : null}
-              </tr>
-            </thead>
-            <tbody>
-              {history.data.items.map((assignment) => (
-                <tr key={assignment.id} className="transition hover:bg-[var(--color-surface-sunken)]">
-                  <Td className="font-medium tabular-nums">{assignment.dayKey}</Td>
-                  {/* Campus and batch are separate columns, and rows are never merged:
-                      22 Aug can carry an SRM/Foundation row and a Vels/Foundation row,
-                      and collapsing them would misreport both (§11). */}
-                  <Td>
-                    {assignment.campusCode ? (
-                      <span className="inline-flex items-center gap-1.5">
-                        <CampusChip code={assignment.campusCode} name={assignment.campusName} />
-                        <span className="text-xs text-[var(--color-fg-muted)]">
-                          {assignment.campusName}
-                        </span>
-                      </span>
-                    ) : (
-                      <Badge tone="neutral">All campuses</Badge>
-                    )}
-                  </Td>
-                  <Td>
-                    {assignment.batchCode ? (
-                      <span className="inline-flex items-center gap-1.5">
-                        <BatchChip code={assignment.batchCode} name={assignment.batchName} />
-                        {assignment.cohort ? (
-                          <span className="text-xs text-[var(--color-fg-muted)]">
-                            Cohort {assignment.cohort}
-                          </span>
-                        ) : null}
-                      </span>
-                    ) : (
-                      <Badge tone="neutral">All batches</Badge>
-                    )}
-                    {/* Distinguishes a retargeted row from one that has always been what it
-                        says (§9) — never silently presented as if it always applied here. */}
-                    {assignment.audienceChangedAt ? (
-                      <span
-                        className="ml-1.5 text-xs text-[var(--color-fg-subtle)]"
-                        title={`Originally ${
-                          assignment.originalCampusName ?? 'All campuses'
-                        } — ${assignment.originalBatchName ?? 'All batches'}`}
-                      >
-                        (retargeted)
-                      </span>
-                    ) : null}
-                  </Td>
-                  <Td className="text-[var(--color-fg-muted)]">{assignment.topic ?? '—'}</Td>
-                  <Td>
-                    <div className="flex flex-wrap gap-1.5">
-                      {assignment.problems.map((problem) => (
-                        <a
-                          key={problem.id}
-                          href={problem.url}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                          className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-border)] px-2 py-0.5 text-xs hover:border-[var(--color-brand)]"
-                        >
-                          {problem.title}
-                          <DifficultyBadge difficulty={problem.difficulty} />
-                        </a>
-                      ))}
-                    </div>
-                  </Td>
-                  <Td className="text-right tabular-nums text-[var(--color-fg-muted)]">
-                    {assignment.studentCount}
-                  </Td>
-                  <Td className="text-right tabular-nums">{assignment.problems.length}</Td>
-                  {isAdmin ? (
-                    <Td className="text-right">
-                      <Button
-                        variant="ghost"
-                        className="text-xs"
-                        onClick={() => setRetargeting(assignment)}
-                      >
-                        <Settings2 className="size-3.5" aria-hidden />
-                        Change target
-                      </Button>
-                    </Td>
-                  ) : null}
-                </tr>
-              ))}
-            </tbody>
-          </TableShell>
-        )}
-      </Card>
+      <AssignmentHistoryCard
+        assignments={history.data?.items ?? []}
+        isLoading={history.isLoading}
+        error={history.error}
+        isAdmin={isAdmin}
+        onRetry={() => void history.refetch()}
+        onRetarget={setRetargeting}
+      />
 
       <ChangeAssignmentTargetDialog
         assignment={retargeting}
