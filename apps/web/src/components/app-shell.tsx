@@ -182,18 +182,20 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="border-t border-[var(--color-border)] p-3">
-          <div className="flex items-center gap-2.5 rounded-lg px-2 py-2">
-            <div className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--color-surface-sunken)] text-xs font-semibold">
+          <div className="flex items-center gap-3 rounded-lg bg-[var(--color-surface-sunken)] px-3 py-2.5">
+            <div className="grid size-9 shrink-0 place-items-center rounded-full bg-[var(--color-brand-soft)] text-xs font-semibold text-[var(--color-brand)]">
               {user ? initials(user.name) : '··'}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-medium">{user?.name ?? 'Loading…'}</p>
-              <p className="truncate text-xs text-[var(--color-fg-subtle)]">{user?.role}</p>
+              <p className="truncate text-sm font-medium">{user?.name ?? 'Loading…'}</p>
+              <p className="truncate text-xs text-[var(--color-fg-muted)]">
+                {user?.isSuperAdmin ? 'Super Admin' : user?.role === 'ADMIN' ? 'Admin' : user?.role ?? ''}
+              </p>
             </div>
           </div>
           <Button
             variant="ghost"
-            className="mt-1 w-full justify-start text-xs text-[var(--color-fg-muted)]"
+            className="mt-2 w-full justify-center text-xs"
             onClick={() => {
               const refresh = tokenStore.refresh;
               if (refresh) void api.logout(refresh).catch(() => undefined);
