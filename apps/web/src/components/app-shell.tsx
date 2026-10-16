@@ -151,9 +151,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Sidebar. Hidden on small screens; the top bar carries navigation there. */}
       <aside className="hidden w-60 shrink-0 border-r border-[var(--color-border)] bg-[var(--color-surface-raised)] lg:flex lg:flex-col">
         <div className="flex items-center gap-2 px-5 py-4">
-          <div className="grid size-8 place-items-center rounded-lg bg-[var(--color-brand)] text-sm font-bold text-[var(--color-brand-fg)]">
-            CH
-          </div>
+          <img
+            src="/kalvium-logo.png"
+            alt="Kalvium"
+            className="size-8 rounded-lg object-contain"
+          />
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">Coding Hours</p>
             <p className="truncate text-xs text-[var(--color-fg-subtle)]">Kalvium</p>
