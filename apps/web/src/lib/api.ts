@@ -829,6 +829,16 @@ export const api = {
       { method: 'POST' },
     ),
 
+  // --- Admin management (super admin only) ----------------------------------
+
+  listAdmins: () => apiFetch<AdminAccountRow[]>('/admin/admins'),
+
+  addAdmin: (body: { name: string; email: string }) =>
+    apiFetch<ProvisionedAdminResponse>('/admin/admins', { method: 'POST', body }),
+
+  removeAdmin: (userId: string) =>
+    apiFetch<void>(`/admin/admins/${userId}`, { method: 'DELETE' }),
+
   // --- Mentor management (admin only) ---------------------------------------
 
   mentors: () => apiFetch<MentorAccountRow[]>('/admin/mentors'),
@@ -879,4 +889,21 @@ export interface ProvisionedMentorResponse {
   email: string;
   tempPassword: string | null;
   campusIds: string[];
+}
+
+/** One row of `GET /admin/admins`. */
+export interface AdminAccountRow {
+  id: string;
+  name: string;
+  email: string;
+  isSuperAdmin: boolean;
+  createdAt: string;
+}
+
+/** A newly created admin. */
+export interface ProvisionedAdminResponse {
+  userId: string;
+  name: string;
+  email: string;
+  tempPassword: string | null;
 }

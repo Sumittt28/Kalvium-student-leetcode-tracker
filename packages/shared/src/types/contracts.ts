@@ -47,6 +47,8 @@ export interface AuthUser {
   email: string;
   name: string;
   role: UserRole;
+  /** Super admin has full access to all admin features including user management. */
+  isSuperAdmin: boolean;
   avatarUrl: string | null;
   /** Non-null only for `role: 'STUDENT'` — the linked `Student` row's id. */
   studentId: string | null;

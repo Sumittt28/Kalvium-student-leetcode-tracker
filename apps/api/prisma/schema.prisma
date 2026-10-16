@@ -226,6 +226,9 @@ model User {
   passwordHash      String
   name              String
   role              UserRole  @default(MENTOR)
+  /// Super admin has full access to all admin features including user management.
+  /// Only super admin can add/remove other admins.
+  isSuperAdmin      Boolean   @default(false)
   avatarUrl         String?
   isActive          Boolean   @default(true)
   lastLoginAt       DateTime?

@@ -41,6 +41,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
         email: true,
         name: true,
         role: true,
+        isSuperAdmin: true,
         isActive: true,
         studentId: true,
         passwordChangedAt: true,
@@ -65,6 +66,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       email: user.email,
       name: user.name,
       role: user.role as UserRole,
+      isSuperAdmin: user.isSuperAdmin,
       studentId: user.studentId,
       // Never set means never changed: the account is still on the password it was
       // handed. `ForcePasswordChangeGuard` turns that fact into an actual restriction.

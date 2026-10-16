@@ -48,6 +48,7 @@ import { RollupService } from '../scoring/rollup.service';
 import { StudentMetricsService } from '../scoring/student-metrics.service';
 import { ScoringConfigService } from '../scoring/scoring-config.service';
 import { AuditService } from '../audit/audit.service';
+import { generateTempPassword } from '../auth/password-generator';
 import { AuthModule } from '../auth/auth.module';
 import { StudentAccountsService } from '../auth/student-accounts.service';
 import { MentorAccountsService } from '../auth/mentor-accounts.service';
@@ -114,6 +115,17 @@ class SetMentorCampusesDto {
   @ArrayMaxSize(100)
   @IsUUID('4', { each: true })
   campusIds!: string[];
+}
+
+class CreateAdminDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(120)
+  name!: string;
+
+  @IsEmail()
+  @MaxLength(200)
+  email!: string;
 }
 
 @ApiTags('Admin')
@@ -482,6 +494,108 @@ export class AdminController {
     ]);
 
     return { userId: id, campusIds };
+  }
+
+  // --- Admin Management (Super Admin only) ---------------------------------
+
+  @Get('admins')
+  @ApiOperation({ summary: 'List admin accounts' })
+  listAdmins() {
+    return this.prisma.user.findMany({
+      where: { role: 'ADMIN' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        isSuperAdmin: true,
+        createdAt: true,
+      },
+      orderBy: [{ isSuperAdmin: 'desc' }, { name: 'asc' }],
+    });
+  }
+
+  @Post('admins')
+  @Audit('ADMIN_ACCOUNT_CREATED', 'User')
+  @ApiOperation({
+    summary: 'Create a new admin account (super admin only)',
+    description:
+      'Creates an admin account with a temporary password. Only super admins can create other admins.',
+  })
+  async createAdmin(@Body() dto: CreateAdminDto, @CurrentUser() user: RequestUser) {
+    // Only super admin can create new admins
+    if (!user.isSuperAdmin) {
+      throw new BadRequestException('Only super admins can create new admin accounts.');
+    }
+
+    const email = dto.email.toLowerCase().trim();
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      throw new BadRequestException(`An account with email ${email} already exists.`);
+    }
+
+    // Generate a temporary password
+    const tempPassword = generateTempPassword();
+    const passwordHash = await this.auth.hashPassword(tempPassword);
+
+    const admin = await this.prisma.user.create({
+      data: {
+        email,
+        name: dto.name.trim(),
+        role: 'ADMIN',
+        passwordHash,
+        isSuperAdmin: false,
+      },
+      select: { id: true, name: true, email: true },
+    });
+
+    return {
+      userId: admin.id,
+      name: admin.name,
+      email: admin.email,
+      tempPassword,
+    };
+  }
+
+  @Delete('admins/:id')
+  @Audit('ADMIN_ACCOUNT_REMOVED', 'User')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Remove an admin account (super admin only)',
+    description: 'Downgrades an admin to a regular user. Super admins cannot be removed.',
+  })
+  async removeAdmin(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    // Only super admin can remove admins
+    if (!user.isSuperAdmin) {
+      throw new BadRequestException('Only super admins can remove admin accounts.');
+    }
+
+    const admin = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, role: true, isSuperAdmin: true, email: true },
+    });
+
+    if (!admin) throw new NotFoundException(`User ${id} was not found`);
+    if (admin.role !== 'ADMIN') {
+      throw new BadRequestException(`User ${admin.email} is not an admin.`);
+    }
+    if (admin.isSuperAdmin) {
+      throw new BadRequestException('Super admins cannot be removed.');
+    }
+    if (admin.id === user.id) {
+      throw new BadRequestException('You cannot remove your own admin access.');
+    }
+
+    // Downgrade to MENTOR (keeps the account but removes admin privileges)
+    await this.prisma.user.update({
+      where: { id },
+      data: { role: 'MENTOR' },
+    });
+
+    // Revoke all sessions so the role change takes effect immediately
+    await this.auth.revokeAllSessions(id);
   }
 
   // --- Scoring formula -----------------------------------------------------

@@ -314,6 +314,7 @@ export class AuthService {
       email: string;
       name: string;
       role: string;
+      isSuperAdmin?: boolean;
       avatarUrl: string | null;
       studentId?: string | null;
       passwordChangedAt?: Date | null;
@@ -325,6 +326,7 @@ export class AuthService {
       email: user.email,
       name: user.name,
       role: user.role as UserRole,
+      isSuperAdmin: user.isSuperAdmin ?? false,
       avatarUrl: user.avatarUrl,
       studentId: user.studentId ?? null,
       mustChangePassword: !user.passwordChangedAt,

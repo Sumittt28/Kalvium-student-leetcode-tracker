@@ -46,6 +46,8 @@ export interface RequestUser {
   email: string;
   name: string;
   role: UserRole;
+  /** Super admin has full access to all admin features including user management. */
+  isSuperAdmin: boolean;
   /** Non-null only for `role: 'STUDENT'` — set from the DB on every request, never from
    *  client input. Every student-portal route derives identity from this, not a param. */
   studentId: string | null;

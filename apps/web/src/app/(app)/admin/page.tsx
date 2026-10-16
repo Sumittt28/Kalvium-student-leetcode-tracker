@@ -1,12 +1,15 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { ShieldAlert, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api } from '@/lib/api';
-import { BatchManagement } from '@/components/batch-management';
 import { MentorManagement } from '@/components/mentor-management';
 import { StudentAccountsPanel } from '@/components/student-accounts-panel';
+import { AdminManagement } from '@/components/admin-management';
 import { timeAgo } from '@/lib/utils';
 import {
   Badge,
@@ -22,24 +25,40 @@ import {
 } from '@/components/ui';
 
 export default function AdminPage() {
+  const router = useRouter();
   const queryClient = useQueryClient();
+
+  // Check if user has admin access
+  const me = useQuery({ queryKey: ['me'], queryFn: api.me });
+  const isAdmin = me.data?.role === 'ADMIN';
+  const isSuperAdmin = me.data?.isSuperAdmin ?? false;
+
+  // Redirect non-admins to dashboard
+  useEffect(() => {
+    if (me.data && !isAdmin) {
+      toast.error('Access denied', { description: 'Only admins can access this page.' });
+      router.replace('/');
+    }
+  }, [me.data, isAdmin, router]);
 
   const queue = useQuery({
     queryKey: ['sync', 'queue'],
     queryFn: api.queueHealth,
     refetchInterval: 10_000,
+    enabled: isAdmin,
   });
 
   const latest = useQuery({
     queryKey: ['sync', 'latest'],
     queryFn: api.latestSync,
     refetchInterval: 10_000,
+    enabled: isAdmin,
   });
 
   const items = useQuery({
     queryKey: ['sync', 'items', latest.data?.id],
     queryFn: () => api.syncJobItems(latest.data!.id),
-    enabled: Boolean(latest.data?.id),
+    enabled: Boolean(latest.data?.id) && isAdmin,
   });
 
   const recompute = useMutation({
@@ -64,17 +83,39 @@ export default function AdminPage() {
 
   const failedItems = items.data?.filter((item) => item.status !== 'OK') ?? [];
 
+  // Show loading while checking auth
+  if (me.isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--color-brand)] border-t-transparent" />
+      </div>
+    );
+  }
+
+  // Don't render anything if not admin (will redirect)
+  if (!isAdmin) return null;
+
   return (
     <div className="space-y-5">
-      <header>
-        <h1 className="text-xl font-semibold tracking-tight">Admin</h1>
-        <p className="text-sm text-[var(--color-fg-muted)]">
-          Mentors and campus access, batches, student logins, queue health and score recomputation.
-        </p>
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Admin Panel</h1>
+          <p className="text-sm text-[var(--color-fg-muted)]">
+            Manage admins, mentors, student logins, and system health.
+          </p>
+        </div>
+        {isSuperAdmin && (
+          <Badge tone="brand" className="flex items-center gap-1">
+            <ShieldAlert className="size-3.5" />
+            Super Admin
+          </Badge>
+        )}
       </header>
 
-      <BatchManagement />
+      {/* Admin Management - Super Admin only for editing */}
+      <AdminManagement isSuperAdmin={isSuperAdmin} />
 
+      {/* Mentor Management */}
       <MentorManagement />
 
       <StudentAccountsPanel />
