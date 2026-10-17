@@ -802,7 +802,7 @@ export class DashboardService {
     // main dashboard, found live. Reuses `CampusesService.findAll`'s
     // `hasCodingHoursActivity` option — the same, already-tested filter, not a second
     // copy of it.
-    const campuses = (await this.campuses.findAll(false, null, true)).filter(
+    const campuses = (await this.campuses.findAll(false, null, true, true)).filter(
       (c) => !filterCampusId || c.id === filterCampusId,
     );
     for (const campus of campuses) {

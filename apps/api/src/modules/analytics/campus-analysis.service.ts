@@ -439,7 +439,7 @@ export class CampusAnalysisService {
    */
   private async scopeFor(user: RequestUser, requestedCampusId?: string): Promise<string[]> {
     const allowed: CampusScope = await this.mentorScope.allowedCampusIds(user);
-    const active = await this.campuses.findAll(false, null, true);
+    const active = await this.campuses.findAll(false, null, true, true);
     const everything = active.map((c) => c.id);
 
     const visible = allowed === null ? everything : everything.filter((id) => allowed.includes(id));
