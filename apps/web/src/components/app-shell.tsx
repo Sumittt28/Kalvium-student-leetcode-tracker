@@ -40,9 +40,11 @@ import { ForcePasswordChange } from './force-password-change';
 import { Badge, Button } from './ui';
 
 const NAV = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  // Hidden - not needed for Coding Hours
+  // { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/mentor', label: 'Mentor View', icon: ListChecks },
-  { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
+  // Hidden - not needed for Coding Hours
+  // { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { href: '/students', label: 'Students', icon: Users },
   { href: '/assignments', label: 'Assignments', icon: CalendarDays },
   // The curated Group 1 / Group 2 curriculum, browsable by day. Reference data only: it
@@ -55,7 +57,8 @@ const NAV = [
   // Hidden for now - not needed
   // { href: '/baseline-tests', label: 'Baseline Tests', icon: ClipboardCheck },
   { href: '/email-reports', label: 'Email Reports', icon: Mail },
-  { href: '/analytics', label: 'Analytics', icon: BarChart3 },
+  // Hidden - not needed for Coding Hours
+  // { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   // Separate from Analytics: that page answers "how is the programme trending", this one
   // answers "which students at which campus need a conversation, and on what evidence".
   { href: '/campus-analysis', label: 'Campus Analysis', icon: Building2 },
