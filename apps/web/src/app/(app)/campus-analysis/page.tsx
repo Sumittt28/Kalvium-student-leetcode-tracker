@@ -663,6 +663,45 @@ function CategoryDetail({
   );
 }
 
+/**
+ * Compute day-wise metrics for a student's performance.
+ * - Consistent Solver: Solved all assigned problems for the day
+ * - Attempting but Not Solving: Attempted at least one problem but didn't solve all
+ * - Not Attempting: Didn't attempt any problem for the day
+ */
+function computeDayWiseMetrics(days: {
+  dayKey: string;
+  assigned: number;
+  solved: number;
+  problems: { status: string; attempts: number }[];
+}[]) {
+  const metrics = {
+    consistentSolverDays: [] as string[],
+    attemptingNotSolvingDays: [] as string[],
+    notAttemptingDays: [] as string[],
+  };
+
+  for (const day of days) {
+    if (day.assigned === 0) continue; // Skip days with no assignments
+
+    const solvedAll = day.solved === day.assigned;
+    const hasAttempted = day.problems.some(
+      (p) => p.status === 'ATTEMPTED_NOT_ACCEPTED' || p.attempts > 0
+    );
+    const hasSolvedAny = day.solved > 0;
+
+    if (solvedAll) {
+      metrics.consistentSolverDays.push(day.dayKey);
+    } else if (hasSolvedAny || hasAttempted) {
+      metrics.attemptingNotSolvingDays.push(day.dayKey);
+    } else {
+      metrics.notAttemptingDays.push(day.dayKey);
+    }
+  }
+
+  return metrics;
+}
+
 function StudentDetail({
   studentId,
   range,
@@ -676,6 +715,9 @@ function StudentDetail({
     queryKey: ['campus-analysis-student', studentId, range.from, range.to],
     queryFn: () => api.campusAnalysisStudent(studentId, range),
   });
+
+  // Compute day-wise metrics
+  const dayMetrics = data ? computeDayWiseMetrics(data.days) : null;
 
   return (
     <Card>
@@ -697,51 +739,194 @@ function StudentDetail({
       <div className="px-5 py-4">
         {isLoading ? <Skeleton className="h-48 w-full" /> : null}
         {error ? <ErrorState error={error} onRetry={() => void refetch()} /> : null}
-        {data ? (
-          <TableShell>
-            <thead>
-              <tr>
-                <Th>Assignment date</Th>
-                <Th>Question</Th>
-                <Th>Status</Th>
-                <Th>Accepted on</Th>
-                <Th className="text-right">Attempts</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.days.flatMap((day) =>
-                day.problems.map((p) => (
-                  <tr key={`${day.dayKey}-${p.titleSlug}`}>
-                    <Td className="whitespace-nowrap text-xs text-[var(--color-fg-muted)]">
-                      {day.dayKey}
-                    </Td>
-                    <Td>
-                      <a
-                        href={`https://leetcode.com/problems/${p.titleSlug}/`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="hover:underline"
-                      >
-                        {p.title}
-                      </a>
-                    </Td>
-                    <Td className="whitespace-nowrap text-xs">{p.status.replace(/_/g, ' ').toLowerCase()}</Td>
-                    <Td className="whitespace-nowrap text-xs text-[var(--color-fg-muted)]">
-                      {p.solvedAt ? p.solvedAt.slice(0, 10) : '—'}
-                      {/*
-                        The case that used to be scored as a miss. Stated on the row so a
-                        mentor can see which solves a corrected total came from.
-                      */}
-                      {p.solvedBeforeAssignmentDate ? (
-                        <span className="ml-2">(solved before it was set)</span>
-                      ) : null}
-                    </Td>
-                    <Td className="text-right tabular-nums">{p.attempts}</Td>
+        {data && dayMetrics ? (
+          <>
+            {/* Day-wise Performance Summary */}
+            <div className="mb-6">
+              <h3 className="text-sm font-semibold mb-3">Day-wise Performance Summary</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {/* Consistent Solver Days */}
+                <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-raised)] p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-green-600">
+                      ✓
+                    </span>
+                    <span className="text-sm font-medium">Consistent Solver</span>
+                  </div>
+                  <div className="text-2xl font-bold text-green-600">
+                    {dayMetrics.consistentSolverDays.length}
+                  </div>
+                  <div className="text-xs text-[var(--color-fg-muted)] mt-1">
+                    days with all problems solved
+                  </div>
+                  {dayMetrics.consistentSolverDays.length > 0 && (
+                    <div className="mt-2 text-xs text-[var(--color-fg-muted)] max-h-20 overflow-y-auto">
+                      {dayMetrics.consistentSolverDays.join(', ')}
+                    </div>
+                  )}
+                </div>
+
+                {/* Attempting but Not Solving Days */}
+                <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-raised)] p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-yellow-100 text-yellow-600">
+                      ⚡
+                    </span>
+                    <span className="text-sm font-medium">Attempting, Not Solving</span>
+                  </div>
+                  <div className="text-2xl font-bold text-yellow-600">
+                    {dayMetrics.attemptingNotSolvingDays.length}
+                  </div>
+                  <div className="text-xs text-[var(--color-fg-muted)] mt-1">
+                    days with partial progress
+                  </div>
+                  {dayMetrics.attemptingNotSolvingDays.length > 0 && (
+                    <div className="mt-2 text-xs text-[var(--color-fg-muted)] max-h-20 overflow-y-auto">
+                      {dayMetrics.attemptingNotSolvingDays.join(', ')}
+                    </div>
+                  )}
+                </div>
+
+                {/* Not Attempting Days */}
+                <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-raised)] p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-red-100 text-red-600">
+                      ✗
+                    </span>
+                    <span className="text-sm font-medium">Not Attempting</span>
+                  </div>
+                  <div className="text-2xl font-bold text-red-600">
+                    {dayMetrics.notAttemptingDays.length}
+                  </div>
+                  <div className="text-xs text-[var(--color-fg-muted)] mt-1">
+                    days with no attempts
+                  </div>
+                  {dayMetrics.notAttemptingDays.length > 0 && (
+                    <div className="mt-2 text-xs text-[var(--color-fg-muted)] max-h-20 overflow-y-auto">
+                      {dayMetrics.notAttemptingDays.join(', ')}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Day-wise Breakdown Table */}
+            <div className="mb-6">
+              <h3 className="text-sm font-semibold mb-3">Day-wise Breakdown</h3>
+              <TableShell>
+                <thead>
+                  <tr>
+                    <Th>Date</Th>
+                    <Th className="text-right">Assigned</Th>
+                    <Th className="text-right">Solved</Th>
+                    <Th className="text-right">Attempted</Th>
+                    <Th className="text-right">Not Attempted</Th>
+                    <Th>Status</Th>
                   </tr>
-                )),
-              )}
-            </tbody>
-          </TableShell>
+                </thead>
+                <tbody>
+                  {data.days.map((day) => {
+                    const solved = day.solved;
+                    const attempted = day.problems.filter(
+                      (p) => p.status === 'ATTEMPTED_NOT_ACCEPTED'
+                    ).length;
+                    const notAttempted = day.assigned - solved - attempted;
+                    
+                    let status: 'consistent' | 'partial' | 'none' = 'none';
+                    if (solved === day.assigned && day.assigned > 0) {
+                      status = 'consistent';
+                    } else if (solved > 0 || attempted > 0) {
+                      status = 'partial';
+                    }
+
+                    return (
+                      <tr key={day.dayKey}>
+                        <Td className="whitespace-nowrap font-medium">{day.dayKey}</Td>
+                        <Td className="text-right tabular-nums">{day.assigned}</Td>
+                        <Td className="text-right tabular-nums text-green-600">{solved}</Td>
+                        <Td className="text-right tabular-nums text-yellow-600">{attempted}</Td>
+                        <Td className="text-right tabular-nums text-red-600">{notAttempted}</Td>
+                        <Td>
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                              status === 'consistent'
+                                ? 'bg-green-100 text-green-700'
+                                : status === 'partial'
+                                  ? 'bg-yellow-100 text-yellow-700'
+                                  : 'bg-red-100 text-red-700'
+                            }`}
+                          >
+                            {status === 'consistent'
+                              ? '✓ All Solved'
+                              : status === 'partial'
+                                ? '⚡ Partial'
+                                : '✗ No Attempt'}
+                          </span>
+                        </Td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </TableShell>
+            </div>
+
+            {/* Problem-wise Details */}
+            <div>
+              <h3 className="text-sm font-semibold mb-3">Problem-wise Details</h3>
+              <TableShell>
+                <thead>
+                  <tr>
+                    <Th>Assignment date</Th>
+                    <Th>Question</Th>
+                    <Th>Status</Th>
+                    <Th>Accepted on</Th>
+                    <Th className="text-right">Attempts</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.days.flatMap((day) =>
+                    day.problems.map((p) => (
+                      <tr key={`${day.dayKey}-${p.titleSlug}`}>
+                        <Td className="whitespace-nowrap text-xs text-[var(--color-fg-muted)]">
+                          {day.dayKey}
+                        </Td>
+                        <Td>
+                          <a
+                            href={`https://leetcode.com/problems/${p.titleSlug}/`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="hover:underline"
+                          >
+                            {p.title}
+                          </a>
+                        </Td>
+                        <Td className="whitespace-nowrap text-xs">
+                          <span
+                            className={`${
+                              p.status === 'ACCEPTED'
+                                ? 'text-green-600'
+                                : p.status === 'ATTEMPTED_NOT_ACCEPTED'
+                                  ? 'text-yellow-600'
+                                  : 'text-red-600'
+                            }`}
+                          >
+                            {p.status.replace(/_/g, ' ').toLowerCase()}
+                          </span>
+                        </Td>
+                        <Td className="whitespace-nowrap text-xs text-[var(--color-fg-muted)]">
+                          {p.solvedAt ? p.solvedAt.slice(0, 10) : '—'}
+                          {p.solvedBeforeAssignmentDate ? (
+                            <span className="ml-2">(solved before it was set)</span>
+                          ) : null}
+                        </Td>
+                        <Td className="text-right tabular-nums">{p.attempts}</Td>
+                      </tr>
+                    )),
+                  )}
+                </tbody>
+              </TableShell>
+            </div>
+          </>
         ) : null}
       </div>
     </Card>
