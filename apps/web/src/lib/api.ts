@@ -9,6 +9,56 @@
  * mitigated by the CSP headers and the strict input validation on the server.
  */
 
+/** Coding Hours Weekly Overview response shape. */
+interface CodingHoursStudentDay {
+  date: string;
+  assigned: number;
+  attempted: number;
+  solved: number;
+  solveRate: number | null;
+}
+interface CodingHoursStudent {
+  studentId: string;
+  name: string;
+  email: string;
+  dataAvailable: boolean;
+  days: CodingHoursStudentDay[];
+  weekly: {
+    assigned: number;
+    attempted: number;
+    solved: number;
+    attemptRate: number | null;
+    solveRate: number | null;
+    accuracy: number | null;
+  };
+  band: string;
+  bandReason: string;
+}
+interface CodingHoursDailyRow {
+  date: string;
+  questionsPerStudent: number;
+  totalAssigned: number;
+  totalAttempted: number;
+  attemptRate: number | null;
+  totalSolved: number;
+  solveRate: number | null;
+}
+export interface CodingHoursOverview {
+  week: { from: string; to: string; label: string };
+  campus: { id: string; code: string; name: string };
+  summary: {
+    totalStudents: number;
+    questionsPerStudent: number;
+    totalAssigned: number;
+    totalAttempted: number;
+    attemptRate: number | null;
+    totalSolved: number;
+    solveRate: number | null;
+  };
+  dailyBreakdown: CodingHoursDailyRow[];
+  students: CodingHoursStudent[];
+}
+
 import type {
   AnalyticsOverview,
   QuestionBankFiltersResponse,
@@ -429,6 +479,9 @@ export const api = {
     apiFetch<{ period: CampusAnalysisPeriod; campuses: CampusAnalysisSummary[] }>(
       `/campus-analysis/summary${qs(params)}`,
     ),
+
+  codingHoursOverview: (params: { campusId: string; date?: string }) =>
+    apiFetch<CodingHoursOverview>(`/campus-analysis/coding-hours-overview${qs(params)}`),
 
   campusDailyReport: (params: {
     asOf: string;

@@ -835,4 +835,285 @@ export class CampusAnalysisService {
       })),
     };
   }
+
+  // ---------------------------------------------------------------------------
+  // Coding Hours Weekly Overview
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Resolve a Tue–Sat Coding Hours week from any given date.
+   *
+   * The Coding Hours programme runs Tuesday through Saturday.
+   * Given any date, this returns the Tue–Sat window that contains it.
+   * Monday and Sunday map to the previous or next Tue–Sat week.
+   */
+  private codingHoursWeek(dateStr?: string): { from: string; to: string; label: string } {
+    const today = this.time.today();
+    const d = new Date(`${dateStr && this.time.isValid(dateStr) ? dateStr : today}T00:00:00Z`);
+    const dow = d.getUTCDay(); // 0=Sun, 1=Mon, 2=Tue, ..., 6=Sat
+
+    // Find the Tuesday of the current coding-hours week
+    let tue: Date;
+    if (dow === 0) {
+      // Sunday → go back to previous Tuesday (5 days)
+      tue = new Date(d); tue.setUTCDate(d.getUTCDate() - 5);
+    } else if (dow === 1) {
+      // Monday → go back to previous Tuesday (6 days)
+      tue = new Date(d); tue.setUTCDate(d.getUTCDate() - 6);
+    } else {
+      // Tue(2)..Sat(6) → go back to Tuesday
+      tue = new Date(d); tue.setUTCDate(d.getUTCDate() - (dow - 2));
+    }
+    const sat = new Date(tue); sat.setUTCDate(tue.getUTCDate() + 4);
+
+    // Clamp to programme start
+    const progStart = new Date(`${this.CODING_HOURS_START_DATE}T00:00:00Z`);
+    if (tue < progStart) tue.setTime(progStart.getTime());
+
+    const fmt = (dt: Date) => dt.toISOString().slice(0, 10);
+    const lbl = (dt: Date) => dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+
+    return {
+      from: fmt(tue),
+      to: fmt(sat),
+      label: `${lbl(tue)} – ${lbl(sat)} ${sat.getUTCFullYear()}`,
+    };
+  }
+
+  /**
+   * Coding Hours Weekly Overview — a single endpoint serving all three banners.
+   *
+   * Returns:
+   *   1. Weekly summary (4 metric cards)
+   *   2. Daily breakdown (one row per date)
+   *   3. Student-wise performance (one row per student with per-day detail)
+   *
+   * All three sections are derived from the same query so their totals reconcile.
+   *
+   * Definitions:
+   *   Attempt Rate = (Distinct questions attempted at least once / Total assigned) × 100
+   *   Solve Rate   = (Distinct questions solved / Total assigned) × 100
+   *   Accuracy     = (Solved / Attempted) × 100
+   */
+  async codingHoursOverview(
+    user: RequestUser,
+    options: { campusId: string; date?: string } = { campusId: '' },
+  ) {
+    const [scopedCampusId] = await this.scopeFor(user, options.campusId);
+    if (!scopedCampusId) throw new NotFoundException('Campus not found.');
+
+    const campus = await this.prisma.campus.findUnique({
+      where: { id: scopedCampusId },
+      select: { id: true, code: true, name: true },
+    });
+    if (!campus) throw new NotFoundException('Campus not found.');
+
+    const week = this.codingHoursWeek(options.date);
+
+    // All dates in the Tue–Sat range
+    const dates: string[] = [];
+    const cur = new Date(`${week.from}T00:00:00Z`);
+    const end = new Date(`${week.to}T00:00:00Z`);
+    while (cur <= end) {
+      dates.push(cur.toISOString().slice(0, 10));
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+
+    // Eligible students for this campus
+    const students = await this.prisma.student.findMany({
+      where: { campusId: scopedCampusId, status: 'ACTIVE' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        leetcodeUsername: true,
+        syncState: { select: { status: true } },
+      },
+      orderBy: { name: 'asc' },
+    });
+    const studentIds = students.map((s) => s.id);
+
+    if (studentIds.length === 0) {
+      return {
+        week,
+        campus: { id: campus.id, code: campus.code, name: campus.name },
+        summary: {
+          totalStudents: 0, questionsPerStudent: 0, totalAssigned: 0,
+          totalAttempted: 0, attemptRate: null, totalSolved: 0, solveRate: null,
+        },
+        dailyBreakdown: dates.map((d) => ({
+          date: d, questionsPerStudent: 0, totalAssigned: 0,
+          totalAttempted: 0, attemptRate: null, totalSolved: 0, solveRate: null,
+        })),
+        students: [],
+      };
+    }
+
+    // One query: per-student, per-day, with attempted count
+    const rows = await this.prisma.$queryRaw<
+      {
+        studentId: string;
+        dayKey: string;
+        assignedCount: number;
+        solvedCount: number;
+        attemptedCount: bigint;
+      }[]
+    >`
+      SELECT
+        ds."studentId",
+        ds."dayKey",
+        ds."assignedCount",
+        ds."solvedCount",
+        COUNT(*) FILTER (WHERE dps."status" != 'NOT_ATTEMPTED') AS "attemptedCount"
+      FROM "daily_statuses" ds
+      LEFT JOIN "daily_problem_statuses" dps ON dps."dailyStatusId" = ds.id
+      WHERE ds."studentId" = ANY(${studentIds}::uuid[])
+        AND ds."dayKey" >= ${week.from}
+        AND ds."dayKey" <= ${week.to}
+        AND ds."assignedCount" > 0
+      GROUP BY ds.id, ds."studentId", ds."dayKey", ds."assignedCount", ds."solvedCount"
+    `;
+
+    // Index rows by studentId → dayKey
+    const byStudent = new Map<string, Map<string, { assigned: number; attempted: number; solved: number }>>();
+    for (const row of rows) {
+      if (!byStudent.has(row.studentId)) byStudent.set(row.studentId, new Map());
+      byStudent.get(row.studentId)!.set(row.dayKey, {
+        assigned: row.assignedCount,
+        attempted: Number(row.attemptedCount),
+        solved: row.solvedCount,
+      });
+    }
+
+    // --- Banner 3: Student-wise data (build first, aggregate up) ---
+    const pct = (num: number, den: number): number | null => den > 0 ? Math.round((num / den) * 1000) / 10 : null;
+
+    const studentRows = students.map((s) => {
+      const dayMap = byStudent.get(s.id) ?? new Map();
+      const noHandle = !s.leetcodeUsername;
+      const unreliable = UNRELIABLE_SYNC_STATES.has(s.syncState?.status ?? 'NEVER_SYNCED');
+      const dataAvailable = !noHandle && !unreliable;
+
+      const days = dates.map((d) => {
+        const cell = dayMap.get(d);
+        return {
+          date: d,
+          assigned: cell?.assigned ?? 0,
+          attempted: cell?.attempted ?? 0,
+          solved: cell?.solved ?? 0,
+          solveRate: pct(cell?.solved ?? 0, cell?.assigned ?? 0),
+        };
+      });
+
+      const wAssigned = days.reduce((s, d) => s + d.assigned, 0);
+      const wAttempted = days.reduce((s, d) => s + d.attempted, 0);
+      const wSolved = days.reduce((s, d) => s + d.solved, 0);
+      const wAttemptRate = pct(wAttempted, wAssigned);
+      const wSolveRate = pct(wSolved, wAssigned);
+      const wAccuracy = pct(wSolved, wAttempted);
+
+      // Performance band
+      let band: string;
+      let bandReason: string;
+      if (!dataAvailable) {
+        band = 'Insufficient Data';
+        bandReason = noHandle
+          ? 'No LeetCode handle linked.'
+          : `Sync issue: ${s.syncState?.status ?? 'NEVER_SYNCED'}.`;
+      } else if (wAssigned === 0) {
+        band = 'Insufficient Data';
+        bandReason = 'No questions assigned this week.';
+      } else if (wAttempted === 0) {
+        band = 'No Recorded Activity';
+        bandReason = `0 of ${wAssigned} assigned questions attempted.`;
+      } else {
+        const ar = (wAttempted / wAssigned) * 100;
+        const acc = wAttempted > 0 ? (wSolved / wAttempted) * 100 : 0;
+        if (ar >= 75 && acc >= 75) {
+          band = 'Consistent Progress';
+          bandReason = `Attempt rate ${wAttemptRate}%, accuracy ${wAccuracy}%.`;
+        } else if (ar >= 50 && acc < 75) {
+          band = 'Active — Accuracy Needs Improvement';
+          bandReason = `Attempt rate ${wAttemptRate}%, but accuracy only ${wAccuracy}%.`;
+        } else if (acc >= 75 && ar < 50) {
+          band = 'Strong Accuracy — Low Activity';
+          bandReason = `Accuracy ${wAccuracy}% is strong, but attempt rate only ${wAttemptRate}%.`;
+        } else {
+          band = 'Low Participation';
+          bandReason = `Attempt rate ${wAttemptRate}%, accuracy ${wAccuracy}%.`;
+        }
+      }
+
+      return {
+        studentId: s.id,
+        name: s.name,
+        email: s.email ?? s.name,
+        dataAvailable,
+        days,
+        weekly: {
+          assigned: wAssigned,
+          attempted: wAttempted,
+          solved: wSolved,
+          attemptRate: wAttemptRate,
+          solveRate: wSolveRate,
+          accuracy: wAccuracy,
+        },
+        band,
+        bandReason,
+      };
+    });
+
+    // --- Banner 2: Daily breakdown (aggregate from student rows) ---
+    const dailyBreakdown = dates.map((d) => {
+      let totalAssigned = 0;
+      let totalAttempted = 0;
+      let totalSolved = 0;
+      let studentsWithAssignments = 0;
+
+      for (const sr of studentRows) {
+        const dayData = sr.days.find((dd) => dd.date === d)!;
+        totalAssigned += dayData.assigned;
+        totalAttempted += dayData.attempted;
+        totalSolved += dayData.solved;
+        if (dayData.assigned > 0) studentsWithAssignments++;
+      }
+
+      return {
+        date: d,
+        questionsPerStudent: studentsWithAssignments > 0
+          ? Math.round(totalAssigned / studentsWithAssignments)
+          : 0,
+        totalAssigned,
+        totalAttempted,
+        attemptRate: pct(totalAttempted, totalAssigned),
+        totalSolved,
+        solveRate: pct(totalSolved, totalAssigned),
+      };
+    });
+
+    // --- Banner 1: Weekly summary (aggregate from daily) ---
+    const totalStudents = students.length;
+    const totalAssigned = dailyBreakdown.reduce((s, d) => s + d.totalAssigned, 0);
+    const totalAttempted = dailyBreakdown.reduce((s, d) => s + d.totalAttempted, 0);
+    const totalSolved = dailyBreakdown.reduce((s, d) => s + d.totalSolved, 0);
+    const questionsPerStudent = totalStudents > 0
+      ? Math.round(totalAssigned / totalStudents)
+      : 0;
+
+    return {
+      week,
+      campus: { id: campus.id, code: campus.code, name: campus.name },
+      summary: {
+        totalStudents,
+        questionsPerStudent,
+        totalAssigned,
+        totalAttempted,
+        attemptRate: pct(totalAttempted, totalAssigned),
+        totalSolved,
+        solveRate: pct(totalSolved, totalAssigned),
+      },
+      dailyBreakdown,
+      students: studentRows,
+    };
+  }
 }

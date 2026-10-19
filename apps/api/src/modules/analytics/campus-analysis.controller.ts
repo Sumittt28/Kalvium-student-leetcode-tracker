@@ -133,4 +133,29 @@ export class CampusAnalysisController {
   ) {
     return this.analysis.studentDetail(user, studentId, { from, to });
   }
+
+  /**
+   * Coding Hours Weekly Overview — three-banner analytics.
+   *
+   * Returns weekly summary, daily breakdown, and student-wise performance
+   * for the Tue–Sat week containing the given date.
+   */
+  @Get('coding-hours-overview')
+  @Roles('ADMIN', 'MENTOR', 'VIEWER')
+  @ApiOperation({
+    summary: 'Coding Hours weekly overview with daily and student-wise breakdown',
+    description:
+      'Returns three sections: weekly summary cards, daily assignment performance, ' +
+      'and student-wise weekly performance with bands. Week runs Tue–Sat.',
+  })
+  @ApiQuery({ name: 'campusId', required: true, description: 'Campus to analyse.' })
+  @ApiQuery({ name: 'date', required: false, description: 'Any date within the desired week (YYYY-MM-DD). Defaults to current week.' })
+  codingHoursOverview(
+    @CurrentUser() user: RequestUser,
+    @Query('campusId') campusId: string,
+    @Query('date') date?: string,
+  ) {
+    if (!campusId) throw new BadRequestException('campusId is required.');
+    return this.analysis.codingHoursOverview(user, { campusId, date });
+  }
 }
