@@ -1,102 +1,89 @@
 /**
- * How a student's six weeks are turned into one word.
+ * How a student is categorised based on their overall solve percentage.
  *
- * The five categories, their thresholds and the order they are tested in are taken from
- * the reference workbook's "Category Meaning" sheet, not invented here:
+ * Categories are based on total questions solved vs total assigned across the period:
  *
- *   Consistent Solver  solved 60% or more of the questions in every one of the 6 weeks
- *   Not Participating  solved less than 20% in every one of the 6 weeks
- *   Inconsistent       solved 60% or more in at least 2 weeks, but not in all of them
- *   Improving          share solved in the second half is higher than in the first
- *   Declining          share solved in the second half is lower than in the first
+ *   Consistent Solver           >= 75% questions solved overall
+ *   Attempting but Solving Less 50-74% questions solved overall
+ *   Attempting but Not Solving  < 50% questions solved, but has at least one attempt
+ *   Not At All Attempting       No attempts made on any question
  *
- *   Order of checking: Consistent Solver -> Not Participating -> Inconsistent ->
- *   Improving / Declining. A student is given the first category that fits.
- *
- * Two things the sheet could not express are added, and both exist to stop a measurement
- * gap from being reported as a student's behaviour:
+ * Two additional states exist for measurement gaps:
  *
  *  * `DATA_UNAVAILABLE` — we could not read this student's LeetCode data, so we do not
- *    know what they did. The sheet had no way to say this, so its arithmetic put such a
- *    student at 0% and the ordering handed them "Not Participating". That is a statement
- *    about a student, made from the absence of a statement about a student.
+ *    know what they did.
  *
  *  * `NOT_OBSERVED` — the student was not in the tracker for enough of the period for any
- *    trend to mean anything. A student added in week 5 is not "Declining".
+ *    meaningful categorisation.
  *
  * Neither is a performance category and neither is ever counted as one.
- *
- * `Improving` and `Declining` split the period in half rather than fitting a line: the
- * sheet compares weeks 1-3 against weeks 4-6, and a report that management reads beside
- * last month's has to keep meaning the same thing.
  */
 
 import type { DayKey } from './time';
 
-/** Share of a week's assigned questions that must be solved to count as a strong week. */
-export const STRONG_WEEK_THRESHOLD = 0.6;
-/** At or below this share, every week, is what the sheet calls not participating. */
-export const NOT_PARTICIPATING_THRESHOLD = 0.2;
-/** How many strong weeks make an otherwise uneven record "Inconsistent". */
-export const INCONSISTENT_MIN_STRONG_WEEKS = 2;
+/** Threshold for consistent solver category (>= 75% solved). */
+export const CONSISTENT_SOLVER_THRESHOLD = 0.75;
+/** Threshold for attempting but solving less category (>= 50% and < 75%). */
+export const ATTEMPTING_SOLVING_LESS_THRESHOLD = 0.50;
+/** Minimum assigned questions to be categorised (avoid edge cases with 0 assignments). */
+export const MIN_ASSIGNED_FOR_CATEGORY = 1;
 /**
- * How much of the period a student must have been observable for a trend to be claimed.
+ * How much of the period a student must have been observable for categorisation.
  *
  * Below this they are `NOT_OBSERVED`: the tracker simply was not watching for enough of
- * the period, and a half-measured student placed in a performance bucket is the same
- * mistake as a zeroed one, made more quietly.
+ * the period, and a half-measured student placed in a performance bucket is misleading.
  */
-export const MIN_OBSERVED_WEEKS = 3;
+export const MIN_OBSERVED_WEEKS = 1;
+
+// Legacy thresholds kept for backward compatibility with old categoriseStudent function
+export const STRONG_WEEK_THRESHOLD = 0.6;
+export const NOT_PARTICIPATING_THRESHOLD = 0.2;
+export const INCONSISTENT_MIN_STRONG_WEEKS = 2;
 
 export type CampusCategory =
   | 'CONSISTENT_SOLVER'
-  | 'INCONSISTENT'
-  | 'IMPROVING'
-  | 'DECLINING'
-  | 'NOT_PARTICIPATING'
+  | 'ATTEMPTING_SOLVING_LESS'
+  | 'ATTEMPTING_NOT_SOLVING'
+  | 'NOT_ATTEMPTING'
   | 'NOT_OBSERVED'
   | 'DATA_UNAVAILABLE';
 
-/** Display order: the performance categories in the sheet's order, then the two states. */
+/** Display order: the performance categories in severity order, then the two states. */
 export const CAMPUS_CATEGORIES: CampusCategory[] = [
   'CONSISTENT_SOLVER',
-  'INCONSISTENT',
-  'IMPROVING',
-  'DECLINING',
-  'NOT_PARTICIPATING',
+  'ATTEMPTING_SOLVING_LESS',
+  'ATTEMPTING_NOT_SOLVING',
+  'NOT_ATTEMPTING',
   'NOT_OBSERVED',
   'DATA_UNAVAILABLE',
 ];
 
 export const CAMPUS_CATEGORY_LABELS: Record<CampusCategory, string> = {
   CONSISTENT_SOLVER: 'Consistent Solver',
-  INCONSISTENT: 'Inconsistent',
-  IMPROVING: 'Improving',
-  DECLINING: 'Declining',
-  NOT_PARTICIPATING: 'Not Participating',
+  ATTEMPTING_SOLVING_LESS: 'Attempting but Solving Less',
+  ATTEMPTING_NOT_SOLVING: 'Attempting but Not Solving',
+  NOT_ATTEMPTING: 'Not At All Attempting',
   NOT_OBSERVED: 'Not Observed',
   DATA_UNAVAILABLE: 'Data Unavailable',
 };
 
-/** Mentor-facing wording, in the sheet's own plain language where it had some. */
+/** Mentor-facing wording explaining each category. */
 export const CAMPUS_CATEGORY_MEANINGS: Record<CampusCategory, string> = {
-  CONSISTENT_SOLVER: 'Solves most of the questions, every single week.',
-  INCONSISTENT: 'Does well in some weeks but not in others.',
-  IMPROVING: 'Solving a bigger share of questions now than at the start.',
-  DECLINING: 'Solving a smaller share of questions now than at the start.',
-  NOT_PARTICIPATING: 'Hardly solving any questions.',
-  NOT_OBSERVED: 'Joined partway through — too little of the period was measured to judge a trend.',
+  CONSISTENT_SOLVER: 'Solving 75% or more of all assigned questions.',
+  ATTEMPTING_SOLVING_LESS: 'Solving 50-74% of assigned questions.',
+  ATTEMPTING_NOT_SOLVING: 'Attempting questions but solving less than 50%.',
+  NOT_ATTEMPTING: 'Not attempting any questions at all.',
+  NOT_OBSERVED: 'Joined recently — not enough data to categorise.',
   DATA_UNAVAILABLE: 'Their LeetCode data could not be read. This is not a score of zero.',
 };
 
-/** How each category is decided, so a mentor can check the verdict rather than trust it. */
+/** How each category is decided, so a mentor can check the verdict. */
 export const CAMPUS_CATEGORY_RULES: Record<CampusCategory, string> = {
-  CONSISTENT_SOLVER: 'Solved 60% or more of the questions in every observed week.',
-  INCONSISTENT: 'Solved 60% or more in at least 2 weeks, but not in all of them.',
-  IMPROVING: 'Share of questions solved in the second half of the period is higher than in the first.',
-  DECLINING: 'Share of questions solved in the second half of the period is lower than in the first.',
-  NOT_PARTICIPATING: 'Solved less than 20% of the questions in every observed week.',
-  NOT_OBSERVED: `Fewer than ${MIN_OBSERVED_WEEKS} weeks of the period fall inside this student's time in the tracker.`,
+  CONSISTENT_SOLVER: 'Solved >= 75% of all assigned questions in the period.',
+  ATTEMPTING_SOLVING_LESS: 'Solved 50-74% of all assigned questions in the period.',
+  ATTEMPTING_NOT_SOLVING: 'Solved < 50% but has at least one attempt or partial solve.',
+  NOT_ATTEMPTING: 'No attempts made on any assigned question in the period.',
+  NOT_OBSERVED: `Fewer than ${MIN_OBSERVED_WEEKS} week(s) of data available for this student.`,
   DATA_UNAVAILABLE: 'No reliable reading of this student’s submissions for this period.',
 };
 
@@ -145,28 +132,44 @@ const share = (weeks: StudentWeek[]): number | null => {
 };
 
 /**
- * Place one student, from their weekly rows alone.
+ * Place one student based on their overall solve percentage.
+ *
+ * Categories:
+ *   - CONSISTENT_SOLVER: >= 75% solved overall
+ *   - ATTEMPTING_SOLVING_LESS: 50-74% solved overall
+ *   - ATTEMPTING_NOT_SOLVING: < 50% solved but has attempts
+ *   - NOT_ATTEMPTING: No attempts at all
  *
  * Pure, and takes the weeks rather than fetching them, so the category shown on a campus
  * summary card and the category shown in that card's drill-down are the same function of
- * the same rows. Two code paths producing "Not Participating" independently is how a
- * summary and its detail come to disagree.
+ * the same rows.
  */
 export function categoriseStudent(input: CategoryInput): CategoryVerdict {
   const { weeks, dataAvailable } = input;
 
-  // Weeks with nothing assigned carry no evidence either way and are excluded from every
-  // figure below — otherwise a campus that set no work in week 3 would push its whole
-  // cohort towards "Not Participating" for not solving questions nobody asked for.
+  // Weeks with nothing assigned carry no evidence either way
   const considered = weeks.filter((w) => w.observed && w.assigned > 0);
+  
+  // Calculate totals across all considered weeks
+  const totalAssigned = considered.reduce((sum, w) => sum + w.assigned, 0);
+  const totalSolved = considered.reduce((sum, w) => sum + w.solved, 0);
+  const totalAttemptedNotSolved = considered.reduce((sum, w) => sum + w.attemptedNotSolved, 0);
+  const totalNotAttempted = considered.reduce((sum, w) => sum + w.notAttempted, 0);
+  
+  // Overall percentage
+  const overall = totalAssigned > 0 ? totalSolved / totalAssigned : null;
+  const overallPct = overall !== null ? Math.round(overall * 100) : 0;
+  
+  // Has any attempt (solved or tried but not solved)
+  const hasAttempts = totalSolved > 0 || totalAttemptedNotSolved > 0;
+
+  // Legacy fields for backward compatibility
   const strongWeeks = considered.filter(
     (w) => (pct(w.solved, w.assigned) ?? 0) >= STRONG_WEEK_THRESHOLD,
   ).length;
-
   const midpoint = Math.ceil(considered.length / 2);
   const firstHalf = share(considered.slice(0, midpoint));
   const secondHalf = share(considered.slice(midpoint));
-  const overall = share(considered);
 
   const base = {
     consideredWeeks: considered.length,
@@ -176,8 +179,7 @@ export function categoriseStudent(input: CategoryInput): CategoryVerdict {
     overallPercent: overall,
   };
 
-  // Checked before anything else: every category below is a claim about what the student
-  // did, and we have no basis for one.
+  // Checked before anything else: no basis for a claim about behaviour
   if (!dataAvailable) {
     return {
       ...base,
@@ -192,52 +194,39 @@ export function categoriseStudent(input: CategoryInput): CategoryVerdict {
       category: 'NOT_OBSERVED',
       because:
         `Only ${considered.length} week(s) of this period fall inside their time in the ` +
-        `tracker, which is fewer than the ${MIN_OBSERVED_WEEKS} a trend needs.`,
+        `tracker, which is fewer than the ${MIN_OBSERVED_WEEKS} needed for categorisation.`,
     };
   }
 
-  // The sheet's order, kept exactly: first category that fits wins.
-  if (considered.every((w) => (pct(w.solved, w.assigned) ?? 0) >= STRONG_WEEK_THRESHOLD)) {
+  // New categorisation based on overall percentage
+  if (overall !== null && overall >= CONSISTENT_SOLVER_THRESHOLD) {
     return {
       ...base,
       category: 'CONSISTENT_SOLVER',
-      because: `Solved 60% or more in all ${considered.length} observed weeks.`,
+      because: `Solved ${overallPct}% of all assigned questions (≥ 75%).`,
     };
   }
 
-  if (considered.every((w) => (pct(w.solved, w.assigned) ?? 0) < NOT_PARTICIPATING_THRESHOLD)) {
+  if (overall !== null && overall >= ATTEMPTING_SOLVING_LESS_THRESHOLD) {
     return {
       ...base,
-      category: 'NOT_PARTICIPATING',
-      because: `Solved under 20% in every one of the ${considered.length} observed weeks.`,
+      category: 'ATTEMPTING_SOLVING_LESS',
+      because: `Solved ${overallPct}% of all assigned questions (50-74%).`,
     };
   }
 
-  if (strongWeeks >= INCONSISTENT_MIN_STRONG_WEEKS) {
+  if (hasAttempts) {
     return {
       ...base,
-      category: 'INCONSISTENT',
-      because: `Solved 60% or more in ${strongWeeks} of ${considered.length} weeks, but not in all.`,
+      category: 'ATTEMPTING_NOT_SOLVING',
+      because: `Solved ${overallPct}% of assigned questions but has ${totalSolved + totalAttemptedNotSolved} attempt(s).`,
     };
   }
 
-  const first = firstHalf ?? 0;
-  const second = secondHalf ?? 0;
-  if (second >= first) {
-    return {
-      ...base,
-      category: 'IMPROVING',
-      because:
-        `Solved ${Math.round(second * 100)}% in the second half of the period against ` +
-        `${Math.round(first * 100)}% in the first.`,
-    };
-  }
   return {
     ...base,
-    category: 'DECLINING',
-    because:
-      `Solved ${Math.round(second * 100)}% in the second half of the period against ` +
-      `${Math.round(first * 100)}% in the first.`,
+    category: 'NOT_ATTEMPTING',
+    because: `No attempts made on any of the ${totalAssigned} assigned questions.`,
   };
 }
 

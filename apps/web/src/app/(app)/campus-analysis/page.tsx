@@ -39,10 +39,9 @@ import { EditStudentDialog, type EditableStudent } from '@/components/edit-stude
 /** Categories that describe performance, against those that describe our own coverage. */
 const PERFORMANCE: CampusCategory[] = [
   'CONSISTENT_SOLVER',
-  'INCONSISTENT',
-  'IMPROVING',
-  'DECLINING',
-  'NOT_PARTICIPATING',
+  'ATTEMPTING_SOLVING_LESS',
+  'ATTEMPTING_NOT_SOLVING',
+  'NOT_ATTEMPTING',
 ];
 
 /**
@@ -81,9 +80,20 @@ export default function CampusAnalysisPage() {
     [studentFilters.data, campusFilter],
   );
 
+  // Find batch ID from batch name for API call
+  const selectedBatchId = useMemo(() => {
+    if (batchFilter === 'ALL') return undefined;
+    const batch = batchOptions.find((b) => b.name === batchFilter);
+    return batch?.id;
+  }, [batchFilter, batchOptions]);
+
   const summary = useQuery({
-    queryKey: ['campus-analysis', from, to, campusFilter],
-    queryFn: () => api.campusAnalysis({ ...range, campusId: campusFilter === 'ALL' ? undefined : campusFilter }),
+    queryKey: ['campus-analysis', from, to, campusFilter, selectedBatchId],
+    queryFn: () => api.campusAnalysis({ 
+      ...range, 
+      campusId: campusFilter === 'ALL' ? undefined : campusFilter,
+      batchId: selectedBatchId,
+    }),
   });
 
   if (summary.isLoading) {

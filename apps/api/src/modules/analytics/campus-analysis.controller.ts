@@ -45,16 +45,18 @@ export class CampusAnalysisController {
       'Defaults to the whole programme. Category counts and the drill-down behind them ' +
       'are derived from one call to the same canonical rows, so they cannot disagree.',
   })
-  @ApiQuery({ name: 'from', required: false, description: 'Program day, YYYY-MM-DD. Defaults to the first assigned day.' })
+  @ApiQuery({ name: 'from', required: false, description: 'Program day, YYYY-MM-DD. Defaults to 2026-10-13 (Coding Hours start).' })
   @ApiQuery({ name: 'to', required: false, description: 'Program day, YYYY-MM-DD. Defaults to today.' })
   @ApiQuery({ name: 'campusId', required: false, description: 'Narrow to one campus you may see.' })
+  @ApiQuery({ name: 'batchId', required: false, description: 'Filter to students in this batch only. Questions will be derived from those students\' actual assignments.' })
   summary(
     @CurrentUser() user: RequestUser,
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('campusId') campusId?: string,
+    @Query('batchId') batchId?: string,
   ) {
-    return this.analysis.summary(user, { from, to, campusId });
+    return this.analysis.summary(user, { from, to, campusId, batchId });
   }
 
   /** The students behind one category card, with their weekly progression. */

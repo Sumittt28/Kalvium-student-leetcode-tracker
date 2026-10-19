@@ -71,22 +71,24 @@ export class CampusAnalysisService {
   ) {}
 
   /**
-   * Resolve the period, defaulting to the programme so far.
+   * Coding Hours programme start date. All analysis defaults to this date to exclude
+   * legacy data from before the programme began.
+   */
+  private readonly CODING_HOURS_START_DATE = '2026-10-13' as DayKey;
+
+  /**
+   * Resolve the period, defaulting to the Coding Hours programme start.
    *
-   * `from` defaults to the first day any assignment exists for rather than a fixed date,
-   * so the analysis does not silently start reporting from a hard-coded August after the
-   * programme moves on.
+   * `from` defaults to 2026-10-13 (Coding Hours start) rather than the first assignment
+   * date, so legacy data from before the programme is excluded by default.
    */
   async resolvePeriod(from?: string, to?: string): Promise<CampusAnalysisPeriod> {
     const today = this.time.today();
     const end = (to && this.time.isValid(to) ? to : today) as DayKey;
     if (from && this.time.isValid(from)) return { from: from as DayKey, to: end };
 
-    const earliest = await this.prisma.assignment.findFirst({
-      orderBy: { dayKey: 'asc' },
-      select: { dayKey: true },
-    });
-    return { from: (earliest?.dayKey ?? this.time.addDays(end, -41)) as DayKey, to: end };
+    // Default to Coding Hours start date
+    return { from: this.CODING_HOURS_START_DATE, to: end };
   }
 
   /**
@@ -99,7 +101,7 @@ export class CampusAnalysisService {
    */
   private async weeklyRowsFor(
     period: CampusAnalysisPeriod,
-    scope: { campusIds?: string[]; studentIds?: string[] },
+    scope: { campusIds?: string[]; studentIds?: string[]; batchId?: string },
   ): Promise<StudentAnalysis[]> {
     const weeks = analysisWeeks(period.from, period.to);
 
@@ -108,6 +110,7 @@ export class CampusAnalysisService {
         status: 'ACTIVE',
         ...(scope.campusIds ? { campusId: { in: scope.campusIds } } : {}),
         ...(scope.studentIds ? { id: { in: scope.studentIds } } : {}),
+        ...(scope.batchId ? { batchId: scope.batchId } : {}),
       },
       select: {
         id: true,
@@ -364,6 +367,82 @@ export class CampusAnalysisService {
   }
 
   /**
+   * Derive questions from students' actual daily_problem_statuses.
+   * Used when batch is filtered - questions are based on what students actually received,
+   * not what was assigned at the campus level.
+   */
+  private async questionsFromStudents(
+    studentIds: string[],
+    campusId: string,
+    weeks: { weekNumber: number; from: string; to: string }[],
+  ): Promise<CampusQuestion[]> {
+    if (studentIds.length === 0 || weeks.length === 0) return [];
+
+    const weekValues = Prisma.join(
+      weeks.map((w) => Prisma.sql`(${w.weekNumber}::int, ${w.from}::text, ${w.to}::text)`),
+    );
+
+    const rows = await this.prisma.$queryRaw<
+      {
+        weekNumber: number;
+        slug: string;
+        title: string;
+        dayKeys: string[];
+        solvedStudents: bigint;
+        attemptedStudents: bigint;
+        noDataStudents: bigint;
+        targetedStudents: bigint;
+      }[]
+    >`
+      WITH wk(week_number, from_day, to_day) AS (VALUES ${weekValues})
+      SELECT
+        w.week_number AS "weekNumber",
+        lower(p."titleSlug") AS slug,
+        min(p."title") AS title,
+        array_agg(DISTINCT ds."dayKey" ORDER BY ds."dayKey") AS "dayKeys",
+        count(*) FILTER (WHERE dps."status" = 'ACCEPTED') AS "solvedStudents",
+        count(*) FILTER (WHERE dps."status" = 'ATTEMPTED_NOT_ACCEPTED') AS "attemptedStudents",
+        count(*) FILTER (
+          WHERE dps."status" = 'NOT_ATTEMPTED'
+            AND (st."leetcodeUsername" IS NULL
+                 OR coalesce(ss."status"::text, 'NEVER_SYNCED') = ANY(${[...UNRELIABLE_SYNC_STATES]}::text[]))
+        ) AS "noDataStudents",
+        count(*) AS "targetedStudents"
+      FROM "daily_statuses" ds
+      JOIN wk w ON ds."dayKey" >= w.from_day AND ds."dayKey" <= w.to_day
+      JOIN "daily_problem_statuses" dps ON dps."dailyStatusId" = ds.id
+      JOIN "problems" p ON p.id = dps."problemId"
+      JOIN "students" st ON st.id = ds."studentId"
+      LEFT JOIN "student_sync_states" ss ON ss."studentId" = ds."studentId"
+      WHERE ds."studentId" = ANY(${studentIds}::uuid[])
+      GROUP BY w.week_number, lower(p."titleSlug")
+      ORDER BY w.week_number, lower(p."titleSlug")
+    `;
+
+    return rows.map((row) => {
+      const solvedStudents = Number(row.solvedStudents);
+      const attemptedStudents = Number(row.attemptedStudents);
+      const noDataStudents = Number(row.noDataStudents);
+      const studentsAssigned = Number(row.targetedStudents);
+      return {
+        slug: row.slug,
+        title: row.title,
+        weekNumber: Number(row.weekNumber),
+        dayKeys: row.dayKeys as DayKey[],
+        outcome:
+          solvedStudents > 0 ? 'SOLVED' as const
+            : attemptedStudents > 0 ? 'ATTEMPTED_NOT_SOLVED' as const
+              : 'NOT_ATTEMPTED' as const,
+        studentsAssigned,
+        studentsSolved: solvedStudents,
+        studentsAttemptedNotSolved: attemptedStudents,
+        studentsNotAttempted: Math.max(0, studentsAssigned - solvedStudents - attemptedStudents - noDataStudents),
+        studentsNoData: noDataStudents,
+      };
+    });
+  }
+
+  /**
    * Roll a set of questions into a `CampusOutcomeTally`: distinct questions for
    * `assigned`/`questionsSolved`, student x question pairs for the outcomes.
    */
@@ -470,12 +549,15 @@ export class CampusAnalysisService {
   /** Campus cards: one row per campus, with the category counts that open a drill-down. */
   async summary(
     user: RequestUser,
-    options: { from?: string; to?: string; campusId?: string } = {},
+    options: { from?: string; to?: string; campusId?: string; batchId?: string } = {},
   ): Promise<{ period: CampusAnalysisPeriod; campuses: CampusAnalysisSummary[] }> {
     const period = await this.resolvePeriod(options.from, options.to);
     const campusIds = await this.scopeFor(user, options.campusId);
+    const batchId = options.batchId;
 
     const weeks = analysisWeeks(period.from, period.to);
+    
+    // When batch is filtered, fetch students with batch filter
     const [campuses, analyses, questionsByCampus] = await Promise.all([
       this.prisma.campus.findMany({
         where: { id: { in: campusIds } },
@@ -485,16 +567,22 @@ export class CampusAnalysisService {
       // Student rows still drive the categories — "is this student improving" is a
       // question about a student, and always was. What they no longer drive is the
       // question counts.
-      this.weeklyRowsFor(period, { campusIds }),
-      this.questionsFor(campusIds, weeks),
+      this.weeklyRowsFor(period, { campusIds, batchId }),
+      // When batch is filtered, we'll derive questions from student data instead
+      batchId ? Promise.resolve(new Map<string, CampusQuestion[]>()) : this.questionsFor(campusIds, weeks),
     ]);
 
-    const summaries = campuses.map((campus) => {
+    // Build summaries - async when batch is filtered to derive questions from students
+    const summaries = await Promise.all(campuses.map(async (campus) => {
       // Campus isolation is a filter on the canonical rows, applied once, here — not a
       // parameter each caller remembers to pass.
       const cohort = analyses.filter((a) => a.campusId === campus.id);
       const usable = cohort.filter((a) => a.dataAvailable);
-      const questions = questionsByCampus.get(campus.id) ?? [];
+      
+      // When batch is filtered, derive questions from the filtered students' data
+      const questions = batchId
+        ? await this.questionsFromStudents(cohort.map((s) => s.studentId), campus.id, weeks)
+        : (questionsByCampus.get(campus.id) ?? []);
 
       const weekRows: CampusQuestionWeek[] = weeks.map((w) => {
         const inWeek = questions.filter((q) => q.weekNumber === w.weekNumber);
@@ -539,7 +627,7 @@ export class CampusAnalysisService {
         })),
         weeks: weekRows,
       };
-    });
+    }));
 
     return { period, campuses: summaries };
   }

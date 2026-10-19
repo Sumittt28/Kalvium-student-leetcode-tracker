@@ -204,17 +204,17 @@ describe('campus analysis', () => {
       campusOf(result, campusA).categories.map((c) => [c.category, c.students]),
     );
     expect(counts.CONSISTENT_SOLVER).toBe(1); // 'strong' solved both, every week
-    expect(counts.NOT_PARTICIPATING).toBe(1); // 'silent' solved none, and we can read them
+    expect(counts.NOT_ATTEMPTING).toBe(1); // 'silent' solved none, and we can read them
     expect(counts.DATA_UNAVAILABLE).toBe(2); // 'unreadable' and 'nohandle'
   });
 
   it('never reports an unreadable student as one who solved nothing', async () => {
-    const notParticipating = await service.drillDown(admin, campusA, 'NOT_PARTICIPATING', period);
+    const notAttempting = await service.drillDown(admin, campusA, 'NOT_ATTEMPTING', period);
     const unavailable = await service.drillDown(admin, campusA, 'DATA_UNAVAILABLE', period);
 
     const names = (r: { students: { studentId: string }[] }) => r.students.map((s) => s.studentId);
     // Identical stored rows — all zeros — and they are not given the same verdict.
-    expect(names(notParticipating)).toEqual([studentIds.silent]);
+    expect(names(notAttempting)).toEqual([studentIds.silent]);
     expect(names(unavailable).sort()).toEqual([studentIds.unreadable, studentIds.nohandle].sort());
     for (const student of unavailable.students) {
       expect(student.dataAvailable).toBe(false);
@@ -278,7 +278,7 @@ describe('campus analysis', () => {
     });
 
     it('refuses a mentor who asks for another campus by id, on the drill-down', async () => {
-      await expect(service.drillDown(mentorOfA, campusB, 'NOT_PARTICIPATING', period)).rejects.toThrow();
+      await expect(service.drillDown(mentorOfA, campusB, 'NOT_ATTEMPTING', period)).rejects.toThrow();
     });
 
     it('refuses a mentor reading a student outside their campuses', async () => {

@@ -28,6 +28,10 @@ const percent = (value: number | null): string => (value === null ? '—' : form
 
 const CATEGORY_TONE: Record<string, 'success' | 'warning' | 'danger' | 'neutral' | 'info'> = {
   CONSISTENT_SOLVER: 'success',
+  ATTEMPTING_SOLVING_LESS: 'warning',
+  ATTEMPTING_NOT_SOLVING: 'warning',
+  NOT_ATTEMPTING: 'danger',
+  // Legacy categories for backward compatibility
   IMPROVING: 'success',
   INCONSISTENT: 'warning',
   TRYING_BUT_STRUGGLING: 'warning',
