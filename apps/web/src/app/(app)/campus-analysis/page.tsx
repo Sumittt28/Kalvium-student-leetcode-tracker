@@ -38,9 +38,9 @@ import { EditStudentDialog, type EditableStudent } from '@/components/edit-stude
 
 /** Categories that describe performance, against those that describe our own coverage. */
 const PERFORMANCE: CampusCategory[] = [
-  'CONSISTENT_SOLVER',
-  'ATTEMPTING_SOLVING_LESS',
-  'ATTEMPTING_NOT_SOLVING',
+  'SOLVING_WELL',
+  'SOLVING_SOME',
+  'STRUGGLING',
   'NOT_ATTEMPTING',
 ];
 
@@ -675,10 +675,10 @@ function CategoryDetail({
 
 /**
  * Compute day-wise metrics for a student's performance.
- * Uses percentage-based thresholds:
- * - Consistent Solver: Solved >= 75% of assigned problems for the day
- * - Attempting but Solving Less: Solved 50-74% of assigned problems
- * - Attempting but Not Solving: Solved < 50% but has at least one attempt
+ * Uses percentage-based thresholds matching the main categories:
+ * - Solving Well: Solved >= 75% of assigned problems for the day
+ * - Solving Some: Solved 25-74% of assigned problems
+ * - Struggling: Solved < 25% but has at least one attempt
  * - Not Attempting: No attempts at all
  */
 function computeDayWiseMetrics(days: {
@@ -688,9 +688,9 @@ function computeDayWiseMetrics(days: {
   problems: { status: string; attempts: number }[];
 }[]) {
   const metrics = {
-    consistentSolverDays: [] as string[],
-    attemptingSolvingLessDays: [] as string[],
-    attemptingNotSolvingDays: [] as string[],
+    solvingWellDays: [] as string[],
+    solvingSomeDays: [] as string[],
+    strugglingDays: [] as string[],
     notAttemptingDays: [] as string[],
   };
 
@@ -704,11 +704,11 @@ function computeDayWiseMetrics(days: {
     const hasSolvedAny = day.solved > 0;
 
     if (solvePercent >= 0.75) {
-      metrics.consistentSolverDays.push(day.dayKey);
-    } else if (solvePercent >= 0.50) {
-      metrics.attemptingSolvingLessDays.push(day.dayKey);
+      metrics.solvingWellDays.push(day.dayKey);
+    } else if (solvePercent >= 0.25) {
+      metrics.solvingSomeDays.push(day.dayKey);
     } else if (hasSolvedAny || hasAttempted) {
-      metrics.attemptingNotSolvingDays.push(day.dayKey);
+      metrics.strugglingDays.push(day.dayKey);
     } else {
       metrics.notAttemptingDays.push(day.dayKey);
     }
@@ -760,65 +760,65 @@ function StudentDetail({
             <div className="mb-6">
               <h3 className="text-sm font-semibold mb-3">Day-wise Performance Summary</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Consistent Solver Days (≥ 75%) */}
+                {/* Solving Well (≥ 75%) */}
                 <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-raised)] p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-green-600">
                       ✓
                     </span>
-                    <span className="text-sm font-medium">Consistent Solver</span>
+                    <span className="text-sm font-medium">Solving Well</span>
                   </div>
                   <div className="text-2xl font-bold text-green-600">
-                    {dayMetrics.consistentSolverDays.length}
+                    {dayMetrics.solvingWellDays.length}
                   </div>
                   <div className="text-xs text-[var(--color-fg-muted)] mt-1">
                     days with ≥ 75% solved
                   </div>
-                  {dayMetrics.consistentSolverDays.length > 0 && (
+                  {dayMetrics.solvingWellDays.length > 0 && (
                     <div className="mt-2 text-xs text-[var(--color-fg-muted)] max-h-20 overflow-y-auto">
-                      {dayMetrics.consistentSolverDays.join(', ')}
+                      {dayMetrics.solvingWellDays.join(', ')}
                     </div>
                   )}
                 </div>
 
-                {/* Attempting but Solving Less (50-74%) */}
-                <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-raised)] p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-                      ≈
-                    </span>
-                    <span className="text-sm font-medium">Solving Less</span>
-                  </div>
-                  <div className="text-2xl font-bold text-blue-600">
-                    {dayMetrics.attemptingSolvingLessDays.length}
-                  </div>
-                  <div className="text-xs text-[var(--color-fg-muted)] mt-1">
-                    days with 50-74% solved
-                  </div>
-                  {dayMetrics.attemptingSolvingLessDays.length > 0 && (
-                    <div className="mt-2 text-xs text-[var(--color-fg-muted)] max-h-20 overflow-y-auto">
-                      {dayMetrics.attemptingSolvingLessDays.join(', ')}
-                    </div>
-                  )}
-                </div>
-
-                {/* Attempting but Not Solving (< 50% with attempts) */}
+                {/* Solving Some (25-74%) */}
                 <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-raised)] p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-yellow-100 text-yellow-600">
-                      ⚡
+                      ≈
                     </span>
-                    <span className="text-sm font-medium">Not Solving</span>
+                    <span className="text-sm font-medium">Solving Some</span>
                   </div>
                   <div className="text-2xl font-bold text-yellow-600">
-                    {dayMetrics.attemptingNotSolvingDays.length}
+                    {dayMetrics.solvingSomeDays.length}
                   </div>
                   <div className="text-xs text-[var(--color-fg-muted)] mt-1">
-                    days with &lt; 50% solved
+                    days with 25-74% solved
                   </div>
-                  {dayMetrics.attemptingNotSolvingDays.length > 0 && (
+                  {dayMetrics.solvingSomeDays.length > 0 && (
                     <div className="mt-2 text-xs text-[var(--color-fg-muted)] max-h-20 overflow-y-auto">
-                      {dayMetrics.attemptingNotSolvingDays.join(', ')}
+                      {dayMetrics.solvingSomeDays.join(', ')}
+                    </div>
+                  )}
+                </div>
+
+                {/* Struggling (< 25% with attempts) */}
+                <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-raised)] p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-orange-100 text-orange-600">
+                      ⚡
+                    </span>
+                    <span className="text-sm font-medium">Struggling</span>
+                  </div>
+                  <div className="text-2xl font-bold text-orange-600">
+                    {dayMetrics.strugglingDays.length}
+                  </div>
+                  <div className="text-xs text-[var(--color-fg-muted)] mt-1">
+                    days with &lt; 25% solved
+                  </div>
+                  {dayMetrics.strugglingDays.length > 0 && (
+                    <div className="mt-2 text-xs text-[var(--color-fg-muted)] max-h-20 overflow-y-auto">
+                      {dayMetrics.strugglingDays.join(', ')}
                     </div>
                   )}
                 </div>
@@ -867,13 +867,13 @@ function StudentDetail({
                       (p) => p.status === 'ATTEMPTED_NOT_ACCEPTED' || p.attempts > 0
                     );
                     
-                    let status: 'consistent' | 'solvingLess' | 'notSolving' | 'none' = 'none';
+                    let status: 'solvingWell' | 'solvingSome' | 'struggling' | 'none' = 'none';
                     if (solvePercent >= 75) {
-                      status = 'consistent';
-                    } else if (solvePercent >= 50) {
-                      status = 'solvingLess';
+                      status = 'solvingWell';
+                    } else if (solvePercent >= 25) {
+                      status = 'solvingSome';
                     } else if (solved > 0 || hasAttempted) {
-                      status = 'notSolving';
+                      status = 'struggling';
                     }
 
                     return (
@@ -882,28 +882,28 @@ function StudentDetail({
                         <Td className="text-right tabular-nums">{day.assigned}</Td>
                         <Td className="text-right tabular-nums">{solved}</Td>
                         <Td className="text-right tabular-nums">
-                          <span className={solvePercent >= 75 ? 'text-green-600' : solvePercent >= 50 ? 'text-blue-600' : solvePercent > 0 ? 'text-yellow-600' : 'text-red-600'}>
+                          <span className={solvePercent >= 75 ? 'text-green-600' : solvePercent >= 25 ? 'text-yellow-600' : solvePercent > 0 ? 'text-orange-600' : 'text-red-600'}>
                             {solvePercent.toFixed(0)}%
                           </span>
                         </Td>
                         <Td>
                           <span
                             className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                              status === 'consistent'
+                              status === 'solvingWell'
                                 ? 'bg-green-100 text-green-700'
-                                : status === 'solvingLess'
-                                  ? 'bg-blue-100 text-blue-700'
-                                  : status === 'notSolving'
-                                    ? 'bg-yellow-100 text-yellow-700'
+                                : status === 'solvingSome'
+                                  ? 'bg-yellow-100 text-yellow-700'
+                                  : status === 'struggling'
+                                    ? 'bg-orange-100 text-orange-700'
                                     : 'bg-red-100 text-red-700'
                             }`}
                           >
-                            {status === 'consistent'
+                            {status === 'solvingWell'
                               ? '✓ ≥75%'
-                              : status === 'solvingLess'
-                                ? '≈ 50-74%'
-                                : status === 'notSolving'
-                                  ? '⚡ <50%'
+                              : status === 'solvingSome'
+                                ? '≈ 25-74%'
+                                : status === 'struggling'
+                                  ? '⚡ <25%'
                                   : '✗ 0%'}
                           </span>
                         </Td>

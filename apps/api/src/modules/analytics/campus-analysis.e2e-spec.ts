@@ -203,7 +203,7 @@ describe('campus analysis', () => {
     const counts = Object.fromEntries(
       campusOf(result, campusA).categories.map((c) => [c.category, c.students]),
     );
-    expect(counts.CONSISTENT_SOLVER).toBe(1); // 'strong' solved both, every week
+    expect(counts.SOLVING_WELL).toBe(1); // 'strong' solved both, every week
     expect(counts.NOT_ATTEMPTING).toBe(1); // 'silent' solved none, and we can read them
     expect(counts.DATA_UNAVAILABLE).toBe(2); // 'unreadable' and 'nohandle'
   });

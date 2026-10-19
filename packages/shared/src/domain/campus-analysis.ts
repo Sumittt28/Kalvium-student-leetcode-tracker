@@ -3,10 +3,10 @@
  *
  * Categories are based on total questions solved vs total assigned across the period:
  *
- *   Consistent Solver           >= 75% questions solved overall
- *   Attempting but Solving Less 50-74% questions solved overall
- *   Attempting but Not Solving  < 50% questions solved, but has at least one attempt
- *   Not At All Attempting       No attempts made on any question
+ *   Solving Well    >= 75% questions solved overall
+ *   Solving Some    25-74% questions solved overall
+ *   Struggling      < 25% questions solved, but has at least one solve or attempt
+ *   Not Attempting  No attempts made on any question (0% with no activity)
  *
  * Two additional states exist for measurement gaps:
  *
@@ -21,12 +21,16 @@
 
 import type { DayKey } from './time';
 
-/** Threshold for consistent solver category (>= 75% solved). */
-export const CONSISTENT_SOLVER_THRESHOLD = 0.75;
-/** Threshold for attempting but solving less category (>= 50% and < 75%). */
-export const ATTEMPTING_SOLVING_LESS_THRESHOLD = 0.50;
+/** Threshold for solving well category (>= 75% solved). */
+export const SOLVING_WELL_THRESHOLD = 0.75;
+/** Threshold for solving some category (>= 25% and < 75%). */
+export const SOLVING_SOME_THRESHOLD = 0.25;
 /** Minimum assigned questions to be categorised (avoid edge cases with 0 assignments). */
 export const MIN_ASSIGNED_FOR_CATEGORY = 1;
+
+// Legacy exports for backward compatibility
+export const CONSISTENT_SOLVER_THRESHOLD = SOLVING_WELL_THRESHOLD;
+export const ATTEMPTING_SOLVING_LESS_THRESHOLD = SOLVING_SOME_THRESHOLD;
 /**
  * How much of the period a student must have been observable for categorisation.
  *
@@ -41,37 +45,40 @@ export const NOT_PARTICIPATING_THRESHOLD = 0.2;
 export const INCONSISTENT_MIN_STRONG_WEEKS = 2;
 
 export type CampusCategory =
-  | 'CONSISTENT_SOLVER'
-  | 'ATTEMPTING_SOLVING_LESS'
-  | 'ATTEMPTING_NOT_SOLVING'
+  | 'SOLVING_WELL'
+  | 'SOLVING_SOME'
+  | 'STRUGGLING'
   | 'NOT_ATTEMPTING'
   | 'NOT_OBSERVED'
   | 'DATA_UNAVAILABLE';
 
+// Legacy type alias for backward compatibility
+export type LegacyCampusCategory = 'CONSISTENT_SOLVER' | 'ATTEMPTING_SOLVING_LESS' | 'ATTEMPTING_NOT_SOLVING';
+
 /** Display order: the performance categories in severity order, then the two states. */
 export const CAMPUS_CATEGORIES: CampusCategory[] = [
-  'CONSISTENT_SOLVER',
-  'ATTEMPTING_SOLVING_LESS',
-  'ATTEMPTING_NOT_SOLVING',
+  'SOLVING_WELL',
+  'SOLVING_SOME',
+  'STRUGGLING',
   'NOT_ATTEMPTING',
   'NOT_OBSERVED',
   'DATA_UNAVAILABLE',
 ];
 
 export const CAMPUS_CATEGORY_LABELS: Record<CampusCategory, string> = {
-  CONSISTENT_SOLVER: 'Consistent Solver',
-  ATTEMPTING_SOLVING_LESS: 'Attempting but Solving Less',
-  ATTEMPTING_NOT_SOLVING: 'Attempting but Not Solving',
-  NOT_ATTEMPTING: 'Not At All Attempting',
+  SOLVING_WELL: 'Solving Well',
+  SOLVING_SOME: 'Solving Some',
+  STRUGGLING: 'Struggling',
+  NOT_ATTEMPTING: 'Not Attempting',
   NOT_OBSERVED: 'Not Observed',
   DATA_UNAVAILABLE: 'Data Unavailable',
 };
 
 /** Mentor-facing wording explaining each category. */
 export const CAMPUS_CATEGORY_MEANINGS: Record<CampusCategory, string> = {
-  CONSISTENT_SOLVER: 'Solving 75% or more of all assigned questions.',
-  ATTEMPTING_SOLVING_LESS: 'Solving 50-74% of assigned questions.',
-  ATTEMPTING_NOT_SOLVING: 'Attempting questions but solving less than 50%.',
+  SOLVING_WELL: 'Solving 75% or more of all assigned questions.',
+  SOLVING_SOME: 'Solving 25-74% of assigned questions.',
+  STRUGGLING: 'Attempting but solving less than 25%.',
   NOT_ATTEMPTING: 'Not attempting any questions at all.',
   NOT_OBSERVED: 'Joined recently — not enough data to categorise.',
   DATA_UNAVAILABLE: 'Their LeetCode data could not be read. This is not a score of zero.',
@@ -79,10 +86,10 @@ export const CAMPUS_CATEGORY_MEANINGS: Record<CampusCategory, string> = {
 
 /** How each category is decided, so a mentor can check the verdict. */
 export const CAMPUS_CATEGORY_RULES: Record<CampusCategory, string> = {
-  CONSISTENT_SOLVER: 'Solved >= 75% of all assigned questions in the period.',
-  ATTEMPTING_SOLVING_LESS: 'Solved 50-74% of all assigned questions in the period.',
-  ATTEMPTING_NOT_SOLVING: 'Solved < 50% but has at least one attempt or partial solve.',
-  NOT_ATTEMPTING: 'No attempts made on any assigned question in the period.',
+  SOLVING_WELL: 'Solved ≥ 75% of all assigned questions in the period.',
+  SOLVING_SOME: 'Solved 25-74% of all assigned questions in the period.',
+  STRUGGLING: 'Solved < 25% but has at least one attempt or partial solve.',
+  NOT_ATTEMPTING: 'No solves and no attempts on any assigned question.',
   NOT_OBSERVED: `Fewer than ${MIN_OBSERVED_WEEKS} week(s) of data available for this student.`,
   DATA_UNAVAILABLE: 'No reliable reading of this student’s submissions for this period.',
 };
@@ -135,9 +142,9 @@ const share = (weeks: StudentWeek[]): number | null => {
  * Place one student based on their overall solve percentage.
  *
  * Categories:
- *   - CONSISTENT_SOLVER: >= 75% solved overall
- *   - ATTEMPTING_SOLVING_LESS: 50-74% solved overall
- *   - ATTEMPTING_NOT_SOLVING: < 50% solved but has attempts
+ *   - SOLVING_WELL: >= 75% solved overall
+ *   - SOLVING_SOME: 25-74% solved overall
+ *   - STRUGGLING: < 25% solved but has attempts
  *   - NOT_ATTEMPTING: No attempts at all
  *
  * Pure, and takes the weeks rather than fetching them, so the category shown on a campus
@@ -154,14 +161,13 @@ export function categoriseStudent(input: CategoryInput): CategoryVerdict {
   const totalAssigned = considered.reduce((sum, w) => sum + w.assigned, 0);
   const totalSolved = considered.reduce((sum, w) => sum + w.solved, 0);
   const totalAttemptedNotSolved = considered.reduce((sum, w) => sum + w.attemptedNotSolved, 0);
-  const totalNotAttempted = considered.reduce((sum, w) => sum + w.notAttempted, 0);
   
   // Overall percentage
   const overall = totalAssigned > 0 ? totalSolved / totalAssigned : null;
   const overallPct = overall !== null ? Math.round(overall * 100) : 0;
   
-  // Has any attempt (solved or tried but not solved)
-  const hasAttempts = totalSolved > 0 || totalAttemptedNotSolved > 0;
+  // Has any activity (solved or attempted)
+  const hasActivity = totalSolved > 0 || totalAttemptedNotSolved > 0;
 
   // Legacy fields for backward compatibility
   const strongWeeks = considered.filter(
@@ -198,27 +204,27 @@ export function categoriseStudent(input: CategoryInput): CategoryVerdict {
     };
   }
 
-  // New categorisation based on overall percentage
-  if (overall !== null && overall >= CONSISTENT_SOLVER_THRESHOLD) {
+  // Categorisation based on overall percentage
+  if (overall !== null && overall >= SOLVING_WELL_THRESHOLD) {
     return {
       ...base,
-      category: 'CONSISTENT_SOLVER',
+      category: 'SOLVING_WELL',
       because: `Solved ${overallPct}% of all assigned questions (≥ 75%).`,
     };
   }
 
-  if (overall !== null && overall >= ATTEMPTING_SOLVING_LESS_THRESHOLD) {
+  if (overall !== null && overall >= SOLVING_SOME_THRESHOLD) {
     return {
       ...base,
-      category: 'ATTEMPTING_SOLVING_LESS',
-      because: `Solved ${overallPct}% of all assigned questions (50-74%).`,
+      category: 'SOLVING_SOME',
+      because: `Solved ${overallPct}% of all assigned questions (25-74%).`,
     };
   }
 
-  if (hasAttempts) {
+  if (hasActivity) {
     return {
       ...base,
-      category: 'ATTEMPTING_NOT_SOLVING',
+      category: 'STRUGGLING',
       because: `Solved ${overallPct}% of assigned questions but has ${totalSolved + totalAttemptedNotSolved} attempt(s).`,
     };
   }
