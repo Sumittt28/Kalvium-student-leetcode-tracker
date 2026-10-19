@@ -557,32 +557,33 @@ export class CampusAnalysisService {
 
     const weeks = analysisWeeks(period.from, period.to);
     
-    // When batch is filtered, fetch students with batch filter
-    const [campuses, analyses, questionsByCampus] = await Promise.all([
+    // Fetch students (with optional batch filter)
+    const [campuses, analyses] = await Promise.all([
       this.prisma.campus.findMany({
         where: { id: { in: campusIds } },
         select: { id: true, code: true, name: true },
         orderBy: { code: 'asc' },
       }),
-      // Student rows still drive the categories — "is this student improving" is a
-      // question about a student, and always was. What they no longer drive is the
-      // question counts.
+      // Student rows drive the categories and we derive questions from their actual data
       this.weeklyRowsFor(period, { campusIds, batchId }),
-      // When batch is filtered, we'll derive questions from student data instead
-      batchId ? Promise.resolve(new Map<string, CampusQuestion[]>()) : this.questionsFor(campusIds, weeks),
     ]);
 
-    // Build summaries - async when batch is filtered to derive questions from students
+    // Build summaries - always derive questions from students' actual data
+    // This ensures "Questions assigned" reflects what students actually received,
+    // not all cohorts combined from the assignments table
     const summaries = await Promise.all(campuses.map(async (campus) => {
       // Campus isolation is a filter on the canonical rows, applied once, here — not a
       // parameter each caller remembers to pass.
       const cohort = analyses.filter((a) => a.campusId === campus.id);
       const usable = cohort.filter((a) => a.dataAvailable);
       
-      // When batch is filtered, derive questions from the filtered students' data
-      const questions = batchId
-        ? await this.questionsFromStudents(cohort.map((s) => s.studentId), campus.id, weeks)
-        : (questionsByCampus.get(campus.id) ?? []);
+      // Always derive questions from students' actual daily_problem_statuses
+      // This gives accurate count of what students actually received
+      const questions = await this.questionsFromStudents(
+        cohort.map((s) => s.studentId),
+        campus.id,
+        weeks,
+      );
 
       const weekRows: CampusQuestionWeek[] = weeks.map((w) => {
         const inWeek = questions.filter((q) => q.weekNumber === w.weekNumber);
@@ -609,13 +610,24 @@ export class CampusAnalysisService {
         }
       }
 
+      // Calculate questions per student from actual student data
+      const totalAssignedAcrossStudents = cohort.reduce((sum, s) => sum + s.assigned, 0);
+      const questionsPerStudent = cohort.length > 0 
+        ? Math.round(totalAssignedAcrossStudents / cohort.length)
+        : 0;
+
+      const periodTally = this.tallyPeriod(questions);
+
       return {
         campusId: campus.id,
         campusCode: campus.code,
         campusName: campus.name,
         activeStudents: cohort.length,
         studentsWithUsableData: usable.length,
-        ...this.tallyPeriod(questions),
+        // Override 'assigned' with questions per student (what each student sees)
+        // instead of total unique questions across all students
+        ...periodTally,
+        assigned: questionsPerStudent,
         studentCompletionPercent: this.studentCompletion(questions),
         categories: CAMPUS_CATEGORIES.map((category) => ({
           category,
