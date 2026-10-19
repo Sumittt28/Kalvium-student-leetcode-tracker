@@ -425,7 +425,7 @@ export const api = {
    * Scope is the server's answer, not a parameter: what comes back is exactly the
    * campuses this account may read. There is no "all campuses" flag to get wrong.
    */
-  campusAnalysis: (params: { from?: string; to?: string; campusId?: string; batchId?: string } = {}) =>
+  campusAnalysis: (params: { from?: string; to?: string; campusId?: string; batchId?: string; cohort?: number } = {}) =>
     apiFetch<{ period: CampusAnalysisPeriod; campuses: CampusAnalysisSummary[] }>(
       `/campus-analysis/summary${qs(params)}`,
     ),

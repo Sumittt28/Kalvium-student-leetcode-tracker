@@ -15,7 +15,7 @@
  * reads them as a score.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { ChevronRight, ExternalLink, Pencil } from 'lucide-react';
@@ -56,6 +56,7 @@ export default function CampusAnalysisPage() {
   const [to, setTo] = useState('');
   const [campusFilter, setCampusFilter] = useState('ALL');
   const [batchFilter, setBatchFilter] = useState('ALL');
+  const [cohortFilter, setCohortFilter] = useState('ALL');
   const [squadFilter, setSquadFilter] = useState('ALL');
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState<{ campusId: string; category: CampusCategory } | null>(null);
@@ -87,12 +88,33 @@ export default function CampusAnalysisPage() {
     return batch?.id;
   }, [batchFilter, batchOptions]);
 
+  // Cohort options - available when G1 or G2 is selected
+  // G1 can have C1 and C2, G2 has C3 (but we show as cohort filter)
+  const cohortOptions = useMemo(() => {
+    if (batchFilter === 'ALL') return [];
+    if (batchFilter === 'G1') return [{ value: 1, label: 'C1' }, { value: 2, label: 'C2' }];
+    if (batchFilter === 'G2') return [{ value: 3, label: 'C3' }];
+    return [];
+  }, [batchFilter]);
+
+  // Selected cohort number for API
+  const selectedCohort = useMemo(() => {
+    if (cohortFilter === 'ALL') return undefined;
+    return Number(cohortFilter);
+  }, [cohortFilter]);
+
+  // Reset cohort filter when batch changes
+  useEffect(() => {
+    setCohortFilter('ALL');
+  }, [batchFilter]);
+
   const summary = useQuery({
-    queryKey: ['campus-analysis', from, to, campusFilter, selectedBatchId],
+    queryKey: ['campus-analysis', from, to, campusFilter, selectedBatchId, selectedCohort],
     queryFn: () => api.campusAnalysis({ 
       ...range, 
       campusId: campusFilter === 'ALL' ? undefined : campusFilter,
       batchId: selectedBatchId,
+      cohort: selectedCohort,
     }),
   });
 
@@ -152,6 +174,23 @@ export default function CampusAnalysisPage() {
               ))}
             </select>
           </label>
+          {cohortOptions.length > 0 && (
+            <label className="text-xs text-[var(--color-fg-muted)]">
+              Cohort
+              <select
+                value={cohortFilter}
+                onChange={(e) => setCohortFilter(e.target.value)}
+                className="mt-1 block rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-raised)] px-2 py-1.5 text-sm"
+              >
+                <option value="ALL">All</option>
+                {cohortOptions.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label className="text-xs text-[var(--color-fg-muted)]">
             Squad
             <select
@@ -195,7 +234,7 @@ export default function CampusAnalysisPage() {
               className="mt-1 block rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-raised)] px-2 py-1.5 text-sm"
             />
           </label>
-          {(from || to || search || campusFilter !== 'ALL' || batchFilter !== 'ALL' || squadFilter !== 'ALL') && (
+          {(from || to || search || campusFilter !== 'ALL' || batchFilter !== 'ALL' || cohortFilter !== 'ALL' || squadFilter !== 'ALL') && (
             <Button
               variant="ghost"
               onClick={() => {
@@ -204,6 +243,7 @@ export default function CampusAnalysisPage() {
                 setSearch('');
                 setCampusFilter('ALL');
                 setBatchFilter('ALL');
+                setCohortFilter('ALL');
                 setSquadFilter('ALL');
               }}
             >

@@ -101,7 +101,7 @@ export class CampusAnalysisService {
    */
   private async weeklyRowsFor(
     period: CampusAnalysisPeriod,
-    scope: { campusIds?: string[]; studentIds?: string[]; batchId?: string },
+    scope: { campusIds?: string[]; studentIds?: string[]; batchId?: string; cohort?: number },
   ): Promise<StudentAnalysis[]> {
     const weeks = analysisWeeks(period.from, period.to);
 
@@ -111,6 +111,7 @@ export class CampusAnalysisService {
         ...(scope.campusIds ? { campusId: { in: scope.campusIds } } : {}),
         ...(scope.studentIds ? { id: { in: scope.studentIds } } : {}),
         ...(scope.batchId ? { batchId: scope.batchId } : {}),
+        ...(scope.cohort ? { cohort: scope.cohort } : {}),
       },
       select: {
         id: true,
@@ -549,15 +550,15 @@ export class CampusAnalysisService {
   /** Campus cards: one row per campus, with the category counts that open a drill-down. */
   async summary(
     user: RequestUser,
-    options: { from?: string; to?: string; campusId?: string; batchId?: string } = {},
+    options: { from?: string; to?: string; campusId?: string; batchId?: string; cohort?: number } = {},
   ): Promise<{ period: CampusAnalysisPeriod; campuses: CampusAnalysisSummary[] }> {
     const period = await this.resolvePeriod(options.from, options.to);
     const campusIds = await this.scopeFor(user, options.campusId);
-    const batchId = options.batchId;
+    const { batchId, cohort } = options;
 
     const weeks = analysisWeeks(period.from, period.to);
     
-    // Fetch students (with optional batch filter)
+    // Fetch students (with optional batch and cohort filters)
     const [campuses, analyses] = await Promise.all([
       this.prisma.campus.findMany({
         where: { id: { in: campusIds } },
@@ -565,7 +566,7 @@ export class CampusAnalysisService {
         orderBy: { code: 'asc' },
       }),
       // Student rows drive the categories and we derive questions from their actual data
-      this.weeklyRowsFor(period, { campusIds, batchId }),
+      this.weeklyRowsFor(period, { campusIds, batchId, cohort }),
     ]);
 
     // Build summaries - always derive questions from students' actual data

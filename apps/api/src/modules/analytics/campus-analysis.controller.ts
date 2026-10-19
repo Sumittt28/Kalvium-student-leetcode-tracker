@@ -48,15 +48,18 @@ export class CampusAnalysisController {
   @ApiQuery({ name: 'from', required: false, description: 'Program day, YYYY-MM-DD. Defaults to 2026-10-13 (Coding Hours start).' })
   @ApiQuery({ name: 'to', required: false, description: 'Program day, YYYY-MM-DD. Defaults to today.' })
   @ApiQuery({ name: 'campusId', required: false, description: 'Narrow to one campus you may see.' })
-  @ApiQuery({ name: 'batchId', required: false, description: 'Filter to students in this batch only. Questions will be derived from those students\' actual assignments.' })
+  @ApiQuery({ name: 'batchId', required: false, description: 'Filter to students in this batch only.' })
+  @ApiQuery({ name: 'cohort', required: false, description: 'Filter to students in this cohort (1, 2, or 3). Used with batchId for C1/C2 within G1.' })
   summary(
     @CurrentUser() user: RequestUser,
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('campusId') campusId?: string,
     @Query('batchId') batchId?: string,
+    @Query('cohort') cohort?: string,
   ) {
-    return this.analysis.summary(user, { from, to, campusId, batchId });
+    const cohortNum = cohort ? Number.parseInt(cohort, 10) : undefined;
+    return this.analysis.summary(user, { from, to, campusId, batchId, cohort: cohortNum });
   }
 
   /** The students behind one category card, with their weekly progression. */
