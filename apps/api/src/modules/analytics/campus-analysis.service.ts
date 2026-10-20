@@ -21,7 +21,7 @@
  * from the tracker while looking authoritative.
  */
 
-import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
   analysisWeeks,
@@ -841,42 +841,43 @@ export class CampusAnalysisService {
   // ---------------------------------------------------------------------------
 
   /**
-   * Resolve a Tue–Sat Coding Hours week from any given date.
-   *
-   * The Coding Hours programme runs Tuesday through Saturday.
-   * Given any date, this returns the Tue–Sat window that contains it.
-   * Monday and Sunday map to the previous or next Tue–Sat week.
+   * Build a date-range label from two ISO date strings.
    */
-  private codingHoursWeek(dateStr?: string): { from: string; to: string; label: string } {
+  private rangeLabel(from: string, to: string): string {
+    const f = new Date(`${from}T00:00:00Z`);
+    const t = new Date(`${to}T00:00:00Z`);
+    const lbl = (d: Date) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+    return `${lbl(f)} – ${lbl(t)} ${t.getUTCFullYear()}`;
+  }
+
+  /**
+   * Resolve a custom date range for the Coding Hours overview.
+   *
+   * Accepts explicit from/to dates. If not provided, defaults to the most recent
+   * assignment week (last 7 days with assignments, or programme start to today).
+   * No fixed weekday snapping — the user's exact range is honoured.
+   */
+  private async resolveOverviewRange(
+    from?: string,
+    to?: string,
+  ): Promise<{ from: string; to: string; label: string }> {
     const today = this.time.today();
-    const d = new Date(`${dateStr && this.time.isValid(dateStr) ? dateStr : today}T00:00:00Z`);
-    const dow = d.getUTCDay(); // 0=Sun, 1=Mon, 2=Tue, ..., 6=Sat
 
-    // Find the Tuesday of the current coding-hours week
-    let tue: Date;
-    if (dow === 0) {
-      // Sunday → go back to previous Tuesday (5 days)
-      tue = new Date(d); tue.setUTCDate(d.getUTCDate() - 5);
-    } else if (dow === 1) {
-      // Monday → go back to previous Tuesday (6 days)
-      tue = new Date(d); tue.setUTCDate(d.getUTCDate() - 6);
-    } else {
-      // Tue(2)..Sat(6) → go back to Tuesday
-      tue = new Date(d); tue.setUTCDate(d.getUTCDate() - (dow - 2));
+    // Both provided and valid — use as-is
+    if (from && to && this.time.isValid(from) && this.time.isValid(to)) {
+      return { from, to, label: this.rangeLabel(from, to) };
     }
-    const sat = new Date(tue); sat.setUTCDate(tue.getUTCDate() + 4);
 
-    // Clamp to programme start
-    const progStart = new Date(`${this.CODING_HOURS_START_DATE}T00:00:00Z`);
-    if (tue < progStart) tue.setTime(progStart.getTime());
-
-    const fmt = (dt: Date) => dt.toISOString().slice(0, 10);
-    const lbl = (dt: Date) => dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
-
+    // Default: programme start (or most recent Mon) to today
+    const defaultFrom = this.CODING_HOURS_START_DATE;
+    const defaultTo = today;
     return {
-      from: fmt(tue),
-      to: fmt(sat),
-      label: `${lbl(tue)} – ${lbl(sat)} ${sat.getUTCFullYear()}`,
+      from: from && this.time.isValid(from) ? from : defaultFrom,
+      to: to && this.time.isValid(to) ? to : defaultTo,
+      label: this.rangeLabel(
+        from && this.time.isValid(from) ? from : defaultFrom,
+        to && this.time.isValid(to) ? to : defaultTo,
+      ),
     };
   }
 
@@ -897,7 +898,7 @@ export class CampusAnalysisService {
    */
   async codingHoursOverview(
     user: RequestUser,
-    options: { campusId: string; date?: string } = { campusId: '' },
+    options: { campusId: string; from?: string; to?: string } = { campusId: '' },
   ) {
     const [scopedCampusId] = await this.scopeFor(user, options.campusId);
     if (!scopedCampusId) throw new NotFoundException('Campus not found.');
@@ -908,12 +909,19 @@ export class CampusAnalysisService {
     });
     if (!campus) throw new NotFoundException('Campus not found.');
 
-    const week = this.codingHoursWeek(options.date);
+    const range = await this.resolveOverviewRange(options.from, options.to);
 
-    // All dates in the Tue–Sat range
+    // Validate: from must not be after to
+    if (range.from > range.to) {
+      throw new BadRequestException(
+        `Start date (${range.from}) is after end date (${range.to}). Please select a valid range.`,
+      );
+    }
+
+    // Build the list of dates in the range (inclusive both ends)
     const dates: string[] = [];
-    const cur = new Date(`${week.from}T00:00:00Z`);
-    const end = new Date(`${week.to}T00:00:00Z`);
+    const cur = new Date(`${range.from}T00:00:00Z`);
+    const end = new Date(`${range.to}T00:00:00Z`);
     while (cur <= end) {
       dates.push(cur.toISOString().slice(0, 10));
       cur.setUTCDate(cur.getUTCDate() + 1);
@@ -935,7 +943,7 @@ export class CampusAnalysisService {
 
     if (studentIds.length === 0) {
       return {
-        week,
+        range,
         campus: { id: campus.id, code: campus.code, name: campus.name },
         summary: {
           totalStudents: 0, questionsPerStudent: 0, totalAssigned: 0,
@@ -968,8 +976,8 @@ export class CampusAnalysisService {
       FROM "daily_statuses" ds
       LEFT JOIN "daily_problem_statuses" dps ON dps."dailyStatusId" = ds.id
       WHERE ds."studentId" = ANY(${studentIds}::uuid[])
-        AND ds."dayKey" >= ${week.from}
-        AND ds."dayKey" <= ${week.to}
+        AND ds."dayKey" >= ${range.from}
+        AND ds."dayKey" <= ${range.to}
         AND ds."assignedCount" > 0
       GROUP BY ds.id, ds."studentId", ds."dayKey", ds."assignedCount", ds."solvedCount"
     `;
@@ -1022,7 +1030,7 @@ export class CampusAnalysisService {
           : `Sync issue: ${s.syncState?.status ?? 'NEVER_SYNCED'}.`;
       } else if (wAssigned === 0) {
         band = 'Insufficient Data';
-        bandReason = 'No questions assigned this week.';
+        bandReason = 'No questions assigned in this period.';
       } else if (wAttempted === 0) {
         band = 'No Recorded Activity';
         bandReason = `0 of ${wAssigned} assigned questions attempted.`;
@@ -1101,7 +1109,7 @@ export class CampusAnalysisService {
       : 0;
 
     return {
-      week,
+      range,
       campus: { id: campus.id, code: campus.code, name: campus.name },
       summary: {
         totalStudents,

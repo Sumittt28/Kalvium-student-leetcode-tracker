@@ -44,7 +44,7 @@ interface CodingHoursDailyRow {
   solveRate: number | null;
 }
 export interface CodingHoursOverview {
-  week: { from: string; to: string; label: string };
+  range: { from: string; to: string; label: string };
   campus: { id: string; code: string; name: string };
   summary: {
     totalStudents: number;
@@ -480,7 +480,7 @@ export const api = {
       `/campus-analysis/summary${qs(params)}`,
     ),
 
-  codingHoursOverview: (params: { campusId: string; date?: string }) =>
+  codingHoursOverview: (params: { campusId: string; from?: string; to?: string }) =>
     apiFetch<CodingHoursOverview>(`/campus-analysis/coding-hours-overview${qs(params)}`),
 
   campusDailyReport: (params: {

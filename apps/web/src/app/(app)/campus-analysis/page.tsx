@@ -20,7 +20,7 @@
 
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Users, BookOpen, Target, CheckCircle, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { Users, BookOpen, Target, CheckCircle, Search, AlertTriangle } from 'lucide-react';
 
 import { api, type CodingHoursOverview } from '@/lib/api';
 import {
@@ -62,9 +62,15 @@ const BAND_STYLES: Record<string, { bg: string; text: string }> = {
 
 export default function CampusAnalysisPage() {
   const [campusId, setCampusId] = useState('');
-  const [weekDate, setWeekDate] = useState(''); // any date in the target week
+  const [startDate, setStartDate] = useState('2026-10-13');
+  const [endDate, setEndDate] = useState('2026-10-17');
   const [studentSearch, setStudentSearch] = useState('');
   const [bandFilter, setBandFilter] = useState('ALL');
+
+  // Validation
+  const dateError = startDate && endDate && startDate > endDate
+    ? 'Start date cannot be after end date.'
+    : null;
 
   // Load campuses for the picker
   const campuses = useQuery({
@@ -77,13 +83,14 @@ export default function CampusAnalysisPage() {
 
   // Main data query
   const overview = useQuery({
-    queryKey: ['coding-hours-overview', effectiveCampusId, weekDate],
+    queryKey: ['coding-hours-overview', effectiveCampusId, startDate, endDate],
     queryFn: () =>
       api.codingHoursOverview({
         campusId: effectiveCampusId,
-        date: weekDate || undefined,
+        from: startDate || undefined,
+        to: endDate || undefined,
       }),
-    enabled: !!effectiveCampusId,
+    enabled: !!effectiveCampusId && !dateError,
   });
 
   const data = overview.data;
@@ -118,12 +125,17 @@ export default function CampusAnalysisPage() {
     return counts;
   }, [data]);
 
-  // Week navigation helpers
-  const shiftWeek = (days: number) => {
-    if (!data) return;
-    const base = new Date(`${data.week.from}T00:00:00Z`);
-    base.setUTCDate(base.getUTCDate() + days);
-    setWeekDate(base.toISOString().slice(0, 10));
+  // Quick-select presets
+  const applyPreset = (label: string) => {
+    const today = new Date();
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    const shift = (d: Date, n: number) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
+    switch (label) {
+      case 'last5': setStartDate(fmt(shift(today, -4))); setEndDate(fmt(today)); break;
+      case 'last7': setStartDate(fmt(shift(today, -6))); setEndDate(fmt(today)); break;
+      case 'week1': setStartDate('2026-10-13'); setEndDate('2026-10-17'); break;
+      case 'week2': setStartDate('2026-10-19'); setEndDate('2026-10-24'); break;
+    }
   };
 
   return (
@@ -134,8 +146,8 @@ export default function CampusAnalysisPage() {
       <div>
         <h1 className="text-lg font-semibold tracking-tight">Campus Analysis</h1>
         <p className="mt-1 text-xs text-[var(--color-fg-muted)]">
-          Coding Hours weekly overview — Attempt Rate = distinct questions attempted / assigned.
-          Solve Rate = questions solved / assigned.
+          Attempt Rate = distinct questions attempted at least once / assigned × 100.
+          Solve Rate = questions solved / assigned × 100.
         </p>
 
         <div className="mt-4 flex flex-wrap items-end gap-3">
@@ -155,29 +167,59 @@ export default function CampusAnalysisPage() {
           </label>
 
           <label className="text-xs text-[var(--color-fg-muted)]">
-            Week (pick any date)
+            Start Date
             <input
               type="date"
-              value={weekDate}
-              onChange={(e) => setWeekDate(e.target.value)}
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
               className="mt-1 block rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-raised)] px-2 py-1.5 text-sm"
             />
           </label>
 
-          {data && (
-            <div className="flex items-center gap-1">
-              <Button variant="ghost" onClick={() => shiftWeek(-7)} title="Previous week">
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="rounded-md bg-[var(--color-surface-sunken)] px-3 py-1.5 text-sm font-medium">
-                {data.week.label}
-              </span>
-              <Button variant="ghost" onClick={() => shiftWeek(7)} title="Next week">
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
+          <label className="text-xs text-[var(--color-fg-muted)]">
+            End Date
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="mt-1 block rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-raised)] px-2 py-1.5 text-sm"
+            />
+          </label>
+
+          {/* Quick presets */}
+          <div className="flex items-center gap-1">
+            <button onClick={() => applyPreset('week1')} className="rounded border border-[var(--color-border)] px-2 py-1.5 text-xs hover:bg-[var(--color-surface-sunken)]">
+              13–17 Oct
+            </button>
+            <button onClick={() => applyPreset('week2')} className="rounded border border-[var(--color-border)] px-2 py-1.5 text-xs hover:bg-[var(--color-surface-sunken)]">
+              19–24 Oct
+            </button>
+            <button onClick={() => applyPreset('last5')} className="rounded border border-[var(--color-border)] px-2 py-1.5 text-xs hover:bg-[var(--color-surface-sunken)]">
+              Last 5 days
+            </button>
+            <button onClick={() => applyPreset('last7')} className="rounded border border-[var(--color-border)] px-2 py-1.5 text-xs hover:bg-[var(--color-surface-sunken)]">
+              Last 7 days
+            </button>
+          </div>
         </div>
+
+        {/* Validation error */}
+        {dateError && (
+          <div className="mt-3 flex items-center gap-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+            {dateError}
+          </div>
+        )}
+
+        {/* Active range indicator */}
+        {data && !dateError && (
+          <div className="mt-3 text-sm font-medium">
+            Analysis Period: <span className="text-[var(--color-fg-muted)]">{data.range.label}</span>
+            <span className="ml-2 text-xs text-[var(--color-fg-subtle)]">
+              ({data.dailyBreakdown.length} day{data.dailyBreakdown.length !== 1 ? 's' : ''})
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Loading / Error */}

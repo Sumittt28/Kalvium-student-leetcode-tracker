@@ -143,19 +143,21 @@ export class CampusAnalysisController {
   @Get('coding-hours-overview')
   @Roles('ADMIN', 'MENTOR', 'VIEWER')
   @ApiOperation({
-    summary: 'Coding Hours weekly overview with daily and student-wise breakdown',
+    summary: 'Coding Hours overview with daily and student-wise breakdown',
     description:
-      'Returns three sections: weekly summary cards, daily assignment performance, ' +
-      'and student-wise weekly performance with bands. Week runs Tue–Sat.',
+      'Returns three sections: summary cards, daily assignment performance, ' +
+      'and student-wise performance with bands for a custom date range.',
   })
   @ApiQuery({ name: 'campusId', required: true, description: 'Campus to analyse.' })
-  @ApiQuery({ name: 'date', required: false, description: 'Any date within the desired week (YYYY-MM-DD). Defaults to current week.' })
+  @ApiQuery({ name: 'from', required: false, description: 'Start date (YYYY-MM-DD, inclusive). Defaults to programme start.' })
+  @ApiQuery({ name: 'to', required: false, description: 'End date (YYYY-MM-DD, inclusive). Defaults to today.' })
   codingHoursOverview(
     @CurrentUser() user: RequestUser,
     @Query('campusId') campusId: string,
-    @Query('date') date?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ) {
     if (!campusId) throw new BadRequestException('campusId is required.');
-    return this.analysis.codingHoursOverview(user, { campusId, date });
+    return this.analysis.codingHoursOverview(user, { campusId, from, to });
   }
 }
