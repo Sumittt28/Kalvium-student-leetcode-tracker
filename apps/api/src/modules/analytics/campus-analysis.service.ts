@@ -59,6 +59,53 @@ import type { RequestUser } from '../../common/decorators';
  */
 export const UNRELIABLE_SYNC_STATES = new Set(['NEVER_SYNCED', 'USER_NOT_FOUND', 'PROFILE_PRIVATE', 'RATE_LIMITED', 'PROVIDER_ERROR', 'TIMEOUT']);
 
+/**
+ * Coding Hours performance band definitions — the calibrated 2D system.
+ *
+ * Two metrics, both measured over assigned questions:
+ *   Attempt Rate = attempted / assigned  (are they showing up?)
+ *   Solve Rate   = solved / assigned      (are they succeeding?)
+ *
+ * Attempt rate is the primary axis; solve rate differentiates the engaged group
+ * into skill-success vs skill-struggle. Thresholds are calibrated so strugglers
+ * spread across bands for mentor prioritisation rather than piling into one.
+ *
+ * Shipped to the client so the legend reads from the same source the bands are
+ * computed from — the rule shown and the rule applied can never drift.
+ */
+export const CODING_HOURS_BAND_DEFINITIONS = [
+  {
+    band: 'On Track',
+    rule: 'Attempt ≥ 60% and Solve ≥ 60%',
+    description: 'Showing up and solving most assigned questions. Performing well — keep the momentum.',
+  },
+  {
+    band: 'Struggling with Skill',
+    rule: 'Attempt ≥ 60% but Solve < 60%',
+    description: 'Strong effort — attempting most questions — but solving fewer than expected. Needs concept or skill support, not motivation.',
+  },
+  {
+    band: 'Building Momentum',
+    rule: 'Attempt 40–59%',
+    description: 'Moderate engagement, attempting a fair share of questions. On the right path — encourage greater consistency.',
+  },
+  {
+    band: 'Low Engagement',
+    rule: 'Attempt 10–39%',
+    description: 'Attempting only a small share of questions. Needs encouragement and accountability to build a daily habit.',
+  },
+  {
+    band: 'Not Participating',
+    rule: 'Attempt < 10%',
+    description: 'Little to no recorded activity against assigned questions. Requires immediate mentor outreach.',
+  },
+  {
+    band: 'Insufficient Data',
+    rule: 'No LeetCode profile or data unreadable',
+    description: 'Their LeetCode profile is not linked or could not be read. This is a data gap, not a performance score.',
+  },
+] as const;
+
 @Injectable()
 export class CampusAnalysisService {
   private readonly logger = new Logger(CampusAnalysisService.name);
@@ -1020,36 +1067,46 @@ export class CampusAnalysisService {
       const wSolveRate = pct(wSolved, wAssigned);
       const wAccuracy = pct(wSolved, wAttempted);
 
-      // Performance band
+      // Performance band — calibrated 2D system (attempt rate + solve rate).
+      //
+      // Two metrics, both over assigned questions:
+      //   Attempt Rate = attempted / assigned  → "are they showing up?"
+      //   Solve Rate   = solved / assigned      → "are they succeeding?"
+      //
+      // Decision tree (first match wins). Attempt rate is the primary axis
+      // (engagement); solve rate differentiates within the engaged group
+      // (skill success vs skill struggle). Calibrated so that strugglers are
+      // spread across bands for mentor prioritisation, not crushed into one.
+      const ar = wAssigned > 0 ? (wAttempted / wAssigned) * 100 : 0;
+      const sr = wAssigned > 0 ? (wSolved / wAssigned) * 100 : 0;
+
       let band: string;
       let bandReason: string;
       if (!dataAvailable) {
         band = 'Insufficient Data';
         bandReason = noHandle
-          ? 'No LeetCode handle linked.'
-          : `Sync issue: ${s.syncState?.status ?? 'NEVER_SYNCED'}.`;
+          ? 'No LeetCode handle linked — this is not a performance score.'
+          : `LeetCode data could not be read (${s.syncState?.status ?? 'NEVER_SYNCED'}) — this is not a performance score.`;
       } else if (wAssigned === 0) {
         band = 'Insufficient Data';
-        bandReason = 'No questions assigned in this period.';
-      } else if (wAttempted === 0) {
-        band = 'No Recorded Activity';
-        bandReason = `0 of ${wAssigned} assigned questions attempted.`;
+        bandReason = 'No questions were assigned in this period.';
+      } else if (ar >= 60 && sr >= 60) {
+        band = 'On Track';
+        bandReason = `Attempting ${wAttemptRate}% and solving ${wSolveRate}% of assigned questions.`;
+      } else if (ar >= 60 && sr < 60) {
+        band = 'Struggling with Skill';
+        bandReason = `Attempting ${wAttemptRate}% but solving only ${wSolveRate}% — effort is there, needs concept support.`;
+      } else if (ar >= 40) {
+        band = 'Building Momentum';
+        bandReason = `Attempting ${wAttemptRate}% of assigned questions — moderate engagement, room to grow.`;
+      } else if (ar >= 10) {
+        band = 'Low Engagement';
+        bandReason = `Attempting only ${wAttemptRate}% of assigned questions — needs encouragement.`;
       } else {
-        const ar = (wAttempted / wAssigned) * 100;
-        const acc = wAttempted > 0 ? (wSolved / wAttempted) * 100 : 0;
-        if (ar >= 75 && acc >= 75) {
-          band = 'Consistent Progress';
-          bandReason = `Attempt rate ${wAttemptRate}%, accuracy ${wAccuracy}%.`;
-        } else if (ar >= 50 && acc < 75) {
-          band = 'Active — Accuracy Needs Improvement';
-          bandReason = `Attempt rate ${wAttemptRate}%, but accuracy only ${wAccuracy}%.`;
-        } else if (acc >= 75 && ar < 50) {
-          band = 'Strong Accuracy — Low Activity';
-          bandReason = `Accuracy ${wAccuracy}% is strong, but attempt rate only ${wAttemptRate}%.`;
-        } else {
-          band = 'Low Participation';
-          bandReason = `Attempt rate ${wAttemptRate}%, accuracy ${wAccuracy}%.`;
-        }
+        band = 'Not Participating';
+        bandReason = ar === 0
+          ? `No questions attempted out of ${wAssigned} assigned.`
+          : `Attempting only ${wAttemptRate}% of assigned questions — requires immediate outreach.`;
       }
 
       return {
@@ -1122,6 +1179,7 @@ export class CampusAnalysisService {
       },
       dailyBreakdown,
       students: studentRows,
+      bandDefinitions: CODING_HOURS_BAND_DEFINITIONS,
     };
   }
 }

@@ -48,11 +48,11 @@ const fmtDate = (iso: string): string => {
 };
 
 const BAND_STYLES: Record<string, { bg: string; text: string }> = {
-  'Consistent Progress': { bg: 'bg-green-100', text: 'text-green-800' },
-  'Active — Accuracy Needs Improvement': { bg: 'bg-yellow-100', text: 'text-yellow-800' },
-  'Strong Accuracy — Low Activity': { bg: 'bg-blue-100', text: 'text-blue-800' },
-  'Low Participation': { bg: 'bg-orange-100', text: 'text-orange-800' },
-  'No Recorded Activity': { bg: 'bg-red-100', text: 'text-red-800' },
+  'On Track': { bg: 'bg-green-100', text: 'text-green-800' },
+  'Struggling with Skill': { bg: 'bg-blue-100', text: 'text-blue-800' },
+  'Building Momentum': { bg: 'bg-yellow-100', text: 'text-yellow-800' },
+  'Low Engagement': { bg: 'bg-orange-100', text: 'text-orange-800' },
+  'Not Participating': { bg: 'bg-red-100', text: 'text-red-800' },
   'Insufficient Data': { bg: 'bg-gray-100', text: 'text-gray-600' },
 };
 
@@ -367,11 +367,11 @@ export default function CampusAnalysisPage() {
             <Card>
               <CardHeader
                 title="Student-wise Weekly Performance"
-                description="Each student's daily assignments, attempts, solves, and overall performance band."
+                description="Each student's daily assignments, attempts, solves, and overall performance band. Bands combine attempt rate (showing up) and solve rate (succeeding)."
               />
               <div className="px-5 pb-4">
                 {/* Band summary pills */}
-                <div className="mb-4 flex flex-wrap gap-2">
+                <div className="mb-3 flex flex-wrap gap-2">
                   {Object.entries(bandCounts).sort(([a], [b]) => a.localeCompare(b)).map(([band, count]) => {
                     const style = BAND_STYLES[band] ?? BAND_STYLES['Insufficient Data'];
                     return (
@@ -395,6 +395,29 @@ export default function CampusAnalysisPage() {
                     </button>
                   )}
                 </div>
+
+                {/* Band legend — what each band means */}
+                <details className="mb-4 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-sunken)] px-3 py-2">
+                  <summary className="cursor-pointer text-xs font-medium text-[var(--color-fg-muted)]">
+                    What do these bands mean?
+                  </summary>
+                  <div className="mt-3 space-y-2">
+                    {data.bandDefinitions.map((def) => {
+                      const style = BAND_STYLES[def.band] ?? BAND_STYLES['Insufficient Data'];
+                      return (
+                        <div key={def.band} className="flex items-start gap-2">
+                          <span className={`mt-0.5 inline-block flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${style.bg} ${style.text}`}>
+                            {def.band}
+                          </span>
+                          <div className="text-xs text-[var(--color-fg-muted)]">
+                            <span className="font-medium text-[var(--color-fg)]">{def.rule}.</span>{' '}
+                            {def.description}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
 
                 {/* Search */}
                 <div className="relative mb-4 max-w-xs">

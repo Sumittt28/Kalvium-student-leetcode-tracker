@@ -57,6 +57,7 @@ export interface CodingHoursOverview {
   };
   dailyBreakdown: CodingHoursDailyRow[];
   students: CodingHoursStudent[];
+  bandDefinitions: { band: string; rule: string; description: string }[];
 }
 
 import type {
