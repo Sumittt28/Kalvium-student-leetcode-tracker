@@ -443,7 +443,7 @@ export default function CampusAnalysisPage() {
                         {/* Level 1: Date groups */}
                         <tr>
                           <th
-                            className="sticky left-0 z-20 border-b border-r border-[var(--color-border)] bg-[var(--color-surface-raised)] px-3 py-2 text-left text-xs font-semibold"
+                            className="sticky left-0 z-30 w-[220px] min-w-[220px] max-w-[220px] border-b border-r border-[var(--color-border)] bg-[var(--color-surface-raised)] px-3 py-2 text-left text-xs font-semibold"
                             rowSpan={2}
                           >
                             Student
@@ -464,7 +464,7 @@ export default function CampusAnalysisPage() {
                             Weekly
                           </th>
                           <th
-                            className="sticky right-0 z-20 border-b border-l border-[var(--color-border)] bg-[var(--color-surface-raised)] px-3 py-1.5 text-left text-xs font-semibold"
+                            className="sticky right-0 z-30 w-[160px] min-w-[160px] max-w-[160px] border-b border-l border-[var(--color-border)] bg-[var(--color-surface-raised)] px-3 py-1.5 text-left text-xs font-semibold"
                             rowSpan={2}
                           >
                             Band
@@ -503,12 +503,12 @@ export default function CampusAnalysisPage() {
                         {filteredStudents.map((s) => {
                           const style = BAND_STYLES[s.band] ?? BAND_STYLES['Insufficient Data'];
                           return (
-                            <tr key={s.studentId} className="hover:bg-[var(--color-surface-sunken)]">
+                            <tr key={s.studentId} className="group hover:bg-[var(--color-surface-sunken)]">
                               {/* Sticky student column */}
-                              <td className="sticky left-0 z-10 border-r border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-xs">
-                                <div className="font-medium">{s.name}</div>
+                              <td className="sticky left-0 z-20 w-[220px] min-w-[220px] max-w-[220px] border-r border-[var(--color-border)] bg-[var(--color-surface-raised)] px-3 py-2 text-xs group-hover:bg-[var(--color-surface-sunken)]">
+                                <div className="truncate font-medium">{s.name}</div>
                                 {s.email !== s.name && (
-                                  <div className="text-[10px] text-[var(--color-fg-muted)]">{s.email}</div>
+                                  <div className="truncate text-[10px] text-[var(--color-fg-muted)]">{s.email}</div>
                                 )}
                               </td>
                               {/* Daily cells */}
@@ -547,9 +547,9 @@ export default function CampusAnalysisPage() {
                                 {s.weekly.solved}/{s.weekly.assigned}
                               </td>
                               {/* Sticky band column */}
-                              <td className="sticky right-0 z-10 border-l border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-2">
+                              <td className="sticky right-0 z-20 w-[160px] min-w-[160px] max-w-[160px] border-l border-[var(--color-border)] bg-[var(--color-surface-raised)] px-2 py-2 group-hover:bg-[var(--color-surface-sunken)]">
                                 <span
-                                  className={`inline-block max-w-[140px] truncate rounded-full px-2 py-0.5 text-[10px] font-medium ${style.bg} ${style.text}`}
+                                  className={`inline-block max-w-[144px] truncate rounded-full px-2 py-0.5 text-[10px] font-medium ${style.bg} ${style.text}`}
                                   title={s.bandReason}
                                 >
                                   {s.band}
