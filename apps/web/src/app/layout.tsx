@@ -1,8 +1,21 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
+import { Plus_Jakarta_Sans, JetBrains_Mono } from 'next/font/google';
 
 import { Providers } from '@/components/providers';
 import './globals.css';
+
+// Modern, friendly UI typeface + a crisp monospace for numbers/code.
+const sans = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  variable: '--font-sans-custom',
+  display: 'swap',
+});
+const mono = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-mono-custom',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: {
@@ -27,7 +40,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     // suppressHydrationWarning is required by next-themes: it writes the theme
     // attribute on <html> before React hydrates, which is the whole point.
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
       <body>
         <Providers>{children}</Providers>
       </body>

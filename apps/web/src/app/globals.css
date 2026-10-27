@@ -37,8 +37,8 @@
   --color-hard: #be123c;
 
   --radius-card: 0.75rem;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+  --font-sans: var(--font-sans-custom), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: var(--font-mono-custom), ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, monospace;
 }
 
 @layer base {
