@@ -82,25 +82,29 @@ export class AuthService {
 
     if (!user.isActive) throw new ForbiddenException('This account has been deactivated');
 
-    // A student whose roster status has moved off ACTIVE (archived, dropped, paused)
-    // must not reach the active portal, even though their login credentials still work —
-    // the credential and the roster standing are different facts (§25). Distinct from
-    // "wrong password" both in status code and message, on purpose: this is not a
-    // credential-guessing signal, it is a real account telling the truth about itself.
-    if (user.role === 'STUDENT' && user.student?.status !== 'ACTIVE') {
+    // Student portal access is disabled programme-wide. The tool is mentor/admin-facing
+    // only — students never had access to anyone else's data, but the decision was made
+    // not to expose even their own portal. Credentials are left untouched (not deleted,
+    // not deactivated) so this is a single flag to reverse, not a data operation.
+    //
+    // Subsumes the older "archived student" check that used to live here (blocked a
+    // student whose roster status had moved off ACTIVE): with every student blocked
+    // regardless of roster status, that narrower check is unreachable and was removed.
+    // If student access is ever reinstated, that roster-status check should return
+    // alongside it — a credential being valid is not the same fact as a student's roster
+    // standing being ACTIVE (§25).
+    if (user.role === 'STUDENT') {
       await this.audit.record({
         actorId: user.id,
         actorName: user.name,
-        action: 'LOGIN_BLOCKED_ARCHIVED_STUDENT',
+        action: 'LOGIN_BLOCKED_STUDENT_PORTAL_DISABLED',
         entityType: 'User',
         entityId: user.id,
-        summary: `Blocked login for archived/inactive student ${user.email}`,
+        summary: `Blocked login for ${user.email} — student portal is disabled`,
         ipAddress: ctx.ipAddress,
         userAgent: ctx.userAgent,
       });
-      throw new ForbiddenException(
-        'Your student account is currently inactive. Please contact your mentor/program team.',
-      );
+      throw new ForbiddenException('Student access to this tool is currently disabled.');
     }
 
     await this.prisma.user.update({
@@ -167,6 +171,12 @@ export class AuthService {
 
     const user = await this.prisma.user.findUnique({ where: { id: stored.userId } });
     if (!user || !user.isActive) throw new UnauthorizedException('Account is no longer active');
+
+    // Same block as login: a student holding a still-valid refresh token from before the
+    // portal was disabled must not be able to silently keep renewing access tokens.
+    if (user.role === 'STUDENT') {
+      throw new UnauthorizedException('Student access to this tool is currently disabled.');
+    }
 
     await this.prisma.refreshToken.update({
       where: { id: stored.id },

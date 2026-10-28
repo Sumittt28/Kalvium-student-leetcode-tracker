@@ -1,12 +1,13 @@
 /**
- * `AuthService.login` — the properties that matter for the student portal (§3, §25):
+ * `AuthService.login` — the properties that matter for the student portal:
  *
  *  - An unknown email and a wrong password produce the identical generic message and
  *    status, so a login attempt cannot be used to enumerate registered emails.
- *  - A STUDENT whose linked `Student.status` is not ACTIVE is rejected with the exact
- *    copy the brief specifies, distinct from "wrong password" — this is a real account
- *    telling the truth about itself, not a credential-guessing signal.
- *  - Every other role (and an ACTIVE student) is unaffected by that check.
+ *  - Student portal access is disabled programme-wide: every STUDENT-role login is
+ *    rejected, regardless of their linked `Student.status` — ACTIVE included. Distinct
+ *    from "wrong password" both in status code and message, on purpose: this is a real
+ *    account telling the truth about a policy, not a credential-guessing signal.
+ *  - Every other role is unaffected by that check.
  */
 
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
@@ -86,21 +87,19 @@ describe('AuthService.login — credential errors are indistinguishable', () => 
   });
 });
 
-describe('AuthService.login — archived student', () => {
-  it('rejects with the exact §3 message and 403, not 401', async () => {
-    const { service } = await makeService({ studentStatus: 'ARCHIVED' });
+describe('AuthService.login — student portal disabled', () => {
+  it('rejects an ACTIVE student — the policy applies regardless of roster status', async () => {
+    const { service } = await makeService({ studentStatus: 'ACTIVE' });
     const attempt = service.login('someone@kalvium.community', PASSWORD);
     await expect(attempt).rejects.toThrow(ForbiddenException);
-    await expect(attempt).rejects.toThrow(
-      'Your student account is currently inactive. Please contact your mentor/program team.',
-    );
+    await expect(attempt).rejects.toThrow('Student access to this tool is currently disabled.');
   });
 
   it('records an audit entry distinct from a plain failed login', async () => {
-    const { service, audit } = await makeService({ studentStatus: 'ARCHIVED' });
+    const { service, audit } = await makeService({ studentStatus: 'ACTIVE' });
     await service.login('someone@kalvium.community', PASSWORD).catch(() => undefined);
     expect(audit.record).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'LOGIN_BLOCKED_ARCHIVED_STUDENT' }),
+      expect.objectContaining({ action: 'LOGIN_BLOCKED_STUDENT_PORTAL_DISABLED' }),
     );
   });
 
@@ -109,7 +108,7 @@ describe('AuthService.login — archived student', () => {
     await expect(service.login('someone@kalvium.community', PASSWORD)).rejects.toThrow(ForbiddenException);
   });
 
-  for (const status of ['INACTIVE', 'DROPPED', 'PAUSED']) {
+  for (const status of ['ARCHIVED', 'INACTIVE', 'DROPPED', 'PAUSED']) {
     it(`also rejects status ${status}`, async () => {
       const { service } = await makeService({ studentStatus: status });
       await expect(service.login('someone@kalvium.community', PASSWORD)).rejects.toThrow(ForbiddenException);
@@ -117,15 +116,7 @@ describe('AuthService.login — archived student', () => {
   }
 });
 
-describe('AuthService.login — everyone else is unaffected', () => {
-  it('lets an ACTIVE student log in', async () => {
-    const { service } = await makeService({ studentStatus: 'ACTIVE' });
-    const result = await service.login('someone@kalvium.community', PASSWORD);
-    expect(result.user.role).toBe('STUDENT');
-    expect(result.user.studentId).toBe('student-1');
-    expect(result.accessToken).toBeTruthy();
-  });
-
+describe('AuthService.login — non-student roles are unaffected', () => {
   it('lets an ADMIN log in regardless of the (absent) student link', async () => {
     const { service } = await makeService({ role: 'ADMIN', studentStatus: null });
     const result = await service.login('someone@kalvium.community', PASSWORD);
