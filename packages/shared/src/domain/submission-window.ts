@@ -2,10 +2,12 @@
  * The Coding Hours submission window — which submissions count for an assignment.
  *
  * From `SUBMISSION_WINDOW_EFFECTIVE_DAY` onward, a Coding Hours assignment dated `D`
- * accepts only submissions made from **16:00 on `D` up to and including 15:59:59 on
- * `D + 1`**, program time. Nothing before or after that counts as solved, attempted or
- * scored for it — a problem the student solved last week earns nothing unless they submit
- * it again inside the window.
+ * accepts submissions made on the **assignment day itself** — from **00:00 up to and
+ * including 23:59:59 on `D`**, program time. This matches how the programme actually
+ * runs: problems are shared in the morning and students solve them the same day, so a
+ * solve made that day counts regardless of the hour. Nothing on a different calendar day
+ * counts as solved, attempted or scored for it — a problem solved last week earns nothing
+ * unless they submit it again on the assignment day.
  *
  * Before the effective day the older rule is untouched (see `assignment-completion.ts`),
  * so no result already on record changes: the cut-over is by assignment date, not by when
@@ -30,8 +32,17 @@ import {
 /** First assignment date the window applies to (Monday 12 October 2026). */
 export const SUBMISSION_WINDOW_EFFECTIVE_DAY: DayKey = '2026-10-12';
 
-/** Minute of the program day at which the window opens: 16:00. */
-export const SUBMISSION_WINDOW_OPEN_MINUTE = 16 * 60;
+/**
+ * Minute of the program day at which the window opens: 00:00 (start of the assignment
+ * day). The window therefore spans the full calendar day `[00:00, 23:59:59.999]` in
+ * program time, and consecutive days tile the timeline exactly — no gap, no overlap.
+ *
+ * This was 16:00 originally (a 4pm-session model). It was changed to 00:00 once it was
+ * clear that students receive problems in the morning and solve them the same afternoon:
+ * the 16:00 start pushed those same-day solves into the previous day's window, where they
+ * matched no assignment and silently scored zero.
+ */
+export const SUBMISSION_WINDOW_OPEN_MINUTE = 0;
 
 const MS_PER_MINUTE = 60_000;
 const MINUTES_PER_DAY = 24 * 60;

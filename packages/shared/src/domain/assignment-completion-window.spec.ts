@@ -25,11 +25,18 @@ function sub(slug: string, at: Date, status: CompletionStatus = 'ACCEPTED'): Com
 describe('windowed assignments (from 12 Oct 2026)', () => {
   const D = '2026-10-12';
 
-  it('ignores a problem solved before the window opened', () => {
-    const r = calculateAssignmentCompletion(D, ASSIGNED, [sub('two-sum', ist('2026-10-12', '09:00'))]);
+  it('ignores a problem solved before the window opened (the previous day)', () => {
+    const r = calculateAssignmentCompletion(D, ASSIGNED, [sub('two-sum', ist('2026-10-11', '23:00'))]);
     expect(r.solvedCount).toBe(0);
     expect(r.inWindowSolvedCount).toBe(0);
     expect(r.problems[0]).toMatchObject({ status: 'NOT_ATTEMPTED', attempts: 0, solvedAt: null });
+  });
+
+  it('counts a same-day morning solve — the whole point of the full-day window', () => {
+    const r = calculateAssignmentCompletion(D, ASSIGNED, [sub('two-sum', ist('2026-10-12', '09:00'))]);
+    expect(r.solvedCount).toBe(1);
+    expect(r.inWindowSolvedCount).toBe(1);
+    expect(r.problems[0]).toMatchObject({ status: 'ACCEPTED' });
   });
 
   it('ignores a problem solved last week — it must be submitted again', () => {
@@ -48,10 +55,10 @@ describe('windowed assignments (from 12 Oct 2026)', () => {
     expect(r.problems[0]!.attempts).toBe(1); // the old submission is not an attempt either
   });
 
-  it('counts submissions up to 15:59:59 the next day and not after', () => {
+  it('counts a solve on the assignment day and not the next day', () => {
     const r = calculateAssignmentCompletion(D, ASSIGNED, [
-      sub('two-sum', ist('2026-10-13', '15:59', '59')),
-      sub('valid-anagram', ist('2026-10-13', '16:00', '00')),
+      sub('two-sum', ist('2026-10-12', '13:11')),        // same day afternoon → counts
+      sub('valid-anagram', ist('2026-10-13', '08:00')),  // next day → out of window
     ]);
     expect(r.problems.map((p) => p.status)).toEqual(['ACCEPTED', 'NOT_ATTEMPTED']);
     expect(r.solvedCount).toBe(1);
@@ -59,8 +66,8 @@ describe('windowed assignments (from 12 Oct 2026)', () => {
 
   it('does not count a failed attempt made outside the window', () => {
     const r = calculateAssignmentCompletion(D, ASSIGNED, [
-      sub('two-sum', ist('2026-10-12', '10:00'), 'ATTEMPTED_NOT_ACCEPTED'),
-      sub('valid-anagram', ist('2026-10-12', '18:00'), 'ATTEMPTED_NOT_ACCEPTED'),
+      sub('two-sum', ist('2026-10-11', '10:00'), 'ATTEMPTED_NOT_ACCEPTED'),       // previous day → out
+      sub('valid-anagram', ist('2026-10-12', '18:00'), 'ATTEMPTED_NOT_ACCEPTED'), // same day → in
     ]);
     expect(r.problems.map((p) => p.status)).toEqual(['NOT_ATTEMPTED', 'ATTEMPTED_NOT_ACCEPTED']);
     expect(r.problems.map((p) => p.attempts)).toEqual([0, 1]);
@@ -68,11 +75,11 @@ describe('windowed assignments (from 12 Oct 2026)', () => {
 
   it('completes only when every problem is solved inside the window, and says when', () => {
     const r = calculateAssignmentCompletion(D, ASSIGNED, [
-      sub('two-sum', ist('2026-10-12', '17:00')),
-      sub('valid-anagram', ist('2026-10-13', '09:00')),
+      sub('two-sum', ist('2026-10-12', '09:00')),
+      sub('valid-anagram', ist('2026-10-12', '17:00')),
     ]);
     expect(r.isComplete).toBe(true);
-    expect(r.completedAt?.toISOString()).toBe(ist('2026-10-13', '09:00').toISOString());
+    expect(r.completedAt?.toISOString()).toBe(ist('2026-10-12', '17:00').toISOString());
     expect(r.solvedCount).toBe(r.inWindowSolvedCount);
   });
 
@@ -112,15 +119,15 @@ describe('Attempts Analysis uses the same window', () => {
     providerSubmissionId: id, status, submittedAt: at, dayKey: toDayKey(at, TZ),
   });
 
-  it('gives a windowed day an exact 16:00 -> 15:59:59 window regardless of the next assignment', () => {
+  it('gives a windowed day an exact 00:00 -> 23:59:59 window regardless of the next assignment', () => {
     const w = attemptWindows([day, '2026-10-13', '2026-10-20']).get(day)!;
-    expect(w.startAt?.toISOString()).toBe('2026-10-12T10:30:00.000Z');
-    expect(w.endAt?.toISOString()).toBe('2026-10-13T10:29:59.999Z');
+    expect(w.startAt?.toISOString()).toBe('2026-10-11T18:30:00.000Z'); // 00:00 IST on 12 Oct
+    expect(w.endAt?.toISOString()).toBe('2026-10-12T18:29:59.999Z');   // 23:59:59.999 IST same day
   });
 
-  it('counts only submissions in the window; accepted-before is "solved before assignment"', () => {
+  it('counts only submissions in the window; accepted the previous day is "solved before assignment"', () => {
     const w = attemptWindows([day]).get(day)!;
-    const before = summariseAttempts(w, [att('1', ist('2026-10-12', '09:00'), 'ACCEPTED')]);
+    const before = summariseAttempts(w, [att('1', ist('2026-10-11', '09:00'), 'ACCEPTED')]);
     expect(before).toMatchObject({ outcome: 'SOLVED_BEFORE_ASSIGNMENT', attempts: 0, solved: false });
   });
 

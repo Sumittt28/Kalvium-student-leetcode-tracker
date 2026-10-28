@@ -26,10 +26,10 @@ describe('cut-over', () => {
 });
 
 describe('submissionWindowBounds', () => {
-  it('runs 16:00 IST on the day to 15:59:59.999 IST the next day', () => {
+  it('runs 00:00 IST on the day to 23:59:59.999 IST the same day', () => {
     const { start, end } = submissionWindowBounds('2026-10-12', TZ);
-    expect(start.toISOString()).toBe('2026-10-12T10:30:00.000Z'); // 16:00 IST
-    expect(end.toISOString()).toBe('2026-10-13T10:29:59.999Z'); // 15:59:59.999 IST next day
+    expect(start.toISOString()).toBe('2026-10-11T18:30:00.000Z'); // 00:00 IST on 12 Oct
+    expect(end.toISOString()).toBe('2026-10-12T18:29:59.999Z'); // 23:59:59.999 IST same day
   });
 
   it('tiles the timeline: no gap and no overlap between consecutive days', () => {
@@ -44,13 +44,17 @@ describe('submissionWindowBounds', () => {
 
 describe('isInSubmissionWindow — the exact edges', () => {
   const day = '2026-10-12';
-  it('15:59:59 the next day is in; 16:00:00 the next day is out', () => {
-    expect(isInSubmissionWindow(day, ist('2026-10-13', '15:59', '59'))).toBe(true);
-    expect(isInSubmissionWindow(day, ist('2026-10-13', '16:00', '00'))).toBe(false);
+  it('a same-day afternoon solve is in; the next day is out', () => {
+    // The whole point of the 00:00 window: solves made during the assignment day count.
+    expect(isInSubmissionWindow(day, ist('2026-10-12', '13:11', '00'))).toBe(true);
+    expect(isInSubmissionWindow(day, ist('2026-10-13', '00:00', '00'))).toBe(false);
   });
-  it('15:59:59 on the day is out; 16:00:00 on the day is in', () => {
-    expect(isInSubmissionWindow(day, ist('2026-10-12', '15:59', '59'))).toBe(false);
-    expect(isInSubmissionWindow(day, ist('2026-10-12', '16:00', '00'))).toBe(true);
+  it('00:00:00 on the day is in; 23:59:59 on the day is in', () => {
+    expect(isInSubmissionWindow(day, ist('2026-10-12', '00:00', '00'))).toBe(true);
+    expect(isInSubmissionWindow(day, ist('2026-10-12', '23:59', '59'))).toBe(true);
+  });
+  it('23:59:59 the previous day is out', () => {
+    expect(isInSubmissionWindow(day, ist('2026-10-11', '23:59', '59'))).toBe(false);
   });
   it('is always true before the cut-over, whatever the time', () => {
     expect(isInSubmissionWindow('2026-10-05', ist('2026-01-01', '03:00'))).toBe(true);
@@ -58,32 +62,32 @@ describe('isInSubmissionWindow — the exact edges', () => {
 });
 
 describe('submissionWindowDayFor', () => {
-  it('files a morning submission under the previous day and an evening one under its own', () => {
-    expect(submissionWindowDayFor(ist('2026-10-12', '15:59', '59'), TZ)).toBe('2026-10-11');
-    expect(submissionWindowDayFor(ist('2026-10-12', '16:00', '00'), TZ)).toBe('2026-10-12');
-    expect(submissionWindowDayFor(ist('2026-10-13', '10:30'), TZ)).toBe('2026-10-12');
-    expect(submissionWindowDayFor(ist('2026-10-13', '23:59'), TZ)).toBe('2026-10-13');
+  it('files a submission under the calendar day it was made on', () => {
+    expect(submissionWindowDayFor(ist('2026-10-12', '00:00', '00'), TZ)).toBe('2026-10-12');
+    expect(submissionWindowDayFor(ist('2026-10-12', '13:11', '00'), TZ)).toBe('2026-10-12');
+    expect(submissionWindowDayFor(ist('2026-10-12', '23:59', '59'), TZ)).toBe('2026-10-12');
+    expect(submissionWindowDayFor(ist('2026-10-13', '08:00'), TZ)).toBe('2026-10-13');
   });
 });
 
 describe('completionMinuteFor — time since the assignment opened', () => {
-  it('measures from 16:00, so the same evening beats the next morning', () => {
+  it('measures from 00:00, so a morning solve beats an evening one', () => {
+    const morning = completionMinuteFor('2026-10-12', ist('2026-10-12', '09:00'), TZ);
     const evening = completionMinuteFor('2026-10-12', ist('2026-10-12', '17:00'), TZ);
-    const morning = completionMinuteFor('2026-10-12', ist('2026-10-13', '08:00'), TZ);
-    expect(evening).toBe(60);
-    expect(morning).toBe(960);
-    expect(evening).toBeLessThan(morning);
+    expect(morning).toBe(540); // 9 hours past midnight
+    expect(evening).toBe(1020); // 17 hours past midnight
+    expect(morning).toBeLessThan(evening);
   });
   it('is the ordinary minute of the day before the cut-over', () => {
     expect(completionMinuteFor('2026-10-05', ist('2026-10-05', '09:15'), TZ)).toBe(9 * 60 + 15);
   });
   it('never leaves 0-1439', () => {
-    expect(completionMinuteFor('2026-10-12', ist('2026-10-13', '15:59', '59'), TZ)).toBe(1439);
-    expect(completionMinuteFor('2026-10-12', ist('2026-10-12', '15:00'), TZ)).toBe(0);
+    expect(completionMinuteFor('2026-10-12', ist('2026-10-12', '23:59', '59'), TZ)).toBe(1439);
+    expect(completionMinuteFor('2026-10-12', ist('2026-10-12', '00:00'), TZ)).toBe(0);
   });
   it('round-trips back to the wall clock the student actually saw', () => {
-    expect(clockMinuteForCompletion('2026-10-12', 60)).toBe(17 * 60);
-    expect(clockMinuteForCompletion('2026-10-12', 960)).toBe(8 * 60);
+    expect(clockMinuteForCompletion('2026-10-12', 540)).toBe(9 * 60);
+    expect(clockMinuteForCompletion('2026-10-12', 1020)).toBe(17 * 60);
     expect(clockMinuteForCompletion('2026-10-05', 555)).toBe(555);
   });
 });

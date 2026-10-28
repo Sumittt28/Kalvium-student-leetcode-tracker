@@ -36,91 +36,66 @@ const categorise = (weeks: StudentWeek[], dataAvailable = true) =>
   categoriseStudent({ weeks, dataAvailable }).category;
 
 describe('categoriseStudent', () => {
-  it('calls six strong weeks a consistent solver', () => {
-    const weeks = [1, 2, 3, 4, 5, 6].map((n) => week(n, 10, 8));
-    expect(categorise(weeks)).toBe('CONSISTENT_SOLVER');
+  it('calls a student solving 75% or more overall a strong solver', () => {
+    const weeks = [1, 2, 3, 4, 5, 6].map((n) => week(n, 10, 8)); // 80% overall
+    expect(categorise(weeks)).toBe('SOLVING_WELL');
   });
 
-  it('holds the 60% boundary as inclusive, the way the sheet states it', () => {
-    expect(categorise([1, 2, 3, 4, 5, 6].map((n) => week(n, 10, 6)))).toBe('CONSISTENT_SOLVER');
-    // One week a single question short is no longer "every week".
-    const nearly = [1, 2, 3, 4, 5].map((n) => week(n, 10, 6)).concat(week(6, 10, 5));
-    expect(categorise(nearly)).not.toBe('CONSISTENT_SOLVER');
+  it('holds the 75% boundary as inclusive', () => {
+    expect(categorise([week(1, 4, 3)])).toBe('SOLVING_WELL'); // exactly 75%
+    expect(categorise([week(1, 100, 74)])).toBe('SOLVING_SOME'); // 74% falls short
   });
 
-  it('calls a student under 20% every week not participating', () => {
-    expect(categorise([1, 2, 3, 4, 5, 6].map((n) => week(n, 10, 1)))).toBe('NOT_PARTICIPATING');
+  it('calls 25-74% overall solving some', () => {
+    expect(categorise([week(1, 10, 5)])).toBe('SOLVING_SOME'); // 50%
+    expect(categorise([week(1, 4, 1)])).toBe('SOLVING_SOME'); // exactly 25%
   });
 
-  it('does not call a student not participating on the strength of one good week', () => {
-    const weeks = [1, 2, 3, 4, 5].map((n) => week(n, 10, 1)).concat(week(6, 10, 7));
-    expect(categorise(weeks)).not.toBe('NOT_PARTICIPATING');
+  it('calls under 25% with any activity struggling', () => {
+    expect(categorise([week(1, 10, 1)])).toBe('STRUGGLING'); // 10%, one solve
+    expect(categorise([week(1, 10, 0, { attempted: 2 })])).toBe('STRUGGLING'); // tried, solved none
   });
 
-  it('checks not-participating before inconsistent, in the sheet’s order', () => {
-    // Two strong weeks would satisfy "Inconsistent", but nothing here is strong.
-    const weeks = [1, 2, 3, 4, 5, 6].map((n) => week(n, 10, 0));
-    expect(categorise(weeks)).toBe('NOT_PARTICIPATING');
-  });
-
-  it('calls two strong weeks among weak ones inconsistent', () => {
-    const weeks = [week(1, 10, 8), week(2, 10, 8), week(3, 10, 3), week(4, 10, 3), week(5, 10, 3), week(6, 10, 3)];
-    expect(categorise(weeks)).toBe('INCONSISTENT');
-  });
-
-  it('separates improving from declining on the two halves of the period', () => {
-    const rising = [week(1, 10, 1), week(2, 10, 1), week(3, 10, 2), week(4, 10, 4), week(5, 10, 5), week(6, 10, 5)];
-    const falling = [week(1, 10, 5), week(2, 10, 5), week(3, 10, 4), week(4, 10, 2), week(5, 10, 1), week(6, 10, 1)];
-    expect(categorise(rising)).toBe('IMPROVING');
-    expect(categorise(falling)).toBe('DECLINING');
+  it('calls no solves and no attempts not attempting', () => {
+    expect(categorise([week(1, 10, 0)])).toBe('NOT_ATTEMPTING');
   });
 
   describe('a gap in measurement is never reported as a gap in effort', () => {
     it('reports DATA_UNAVAILABLE rather than scoring an unreadable profile as zero', () => {
-      const weeks = [1, 2, 3, 4, 5, 6].map((n) => week(n, 10, 0));
-      // The same rows that would read "Not Participating" if we trusted them.
-      expect(categorise(weeks, true)).toBe('NOT_PARTICIPATING');
+      const weeks = [week(1, 10, 0)];
+      // The same rows that would read "Not Attempting" if we trusted them.
+      expect(categorise(weeks, true)).toBe('NOT_ATTEMPTING');
       expect(categorise(weeks, false)).toBe('DATA_UNAVAILABLE');
     });
 
-    it('reports NOT_OBSERVED for a student who joined too late to have a trend', () => {
+    it('reports NOT_OBSERVED when no observed week has assigned work', () => {
       const weeks = [
         week(1, 10, 0, { observed: false }),
         week(2, 10, 0, { observed: false }),
-        week(3, 10, 0, { observed: false }),
-        week(4, 10, 0, { observed: false }),
-        week(5, 10, 8),
-        week(6, 10, 9),
       ];
       expect(categorise(weeks)).toBe('NOT_OBSERVED');
     });
 
-    it('judges a late joiner once enough of the period is observed', () => {
+    it('judges a student once at least one observed week has work', () => {
       const weeks = [
         week(1, 10, 0, { observed: false }),
-        week(2, 10, 0, { observed: false }),
-        week(3, 10, 8),
-        week(4, 10, 8),
-        week(5, 10, 8),
-        week(6, 10, 9),
+        week(2, 10, 8), // observed, 80%
       ];
-      expect(categorise(weeks)).toBe('CONSISTENT_SOLVER');
-      expect(categoriseStudent({ weeks, dataAvailable: true }).consideredWeeks).toBe(4);
+      expect(categorise(weeks)).toBe('SOLVING_WELL');
+      expect(categoriseStudent({ weeks, dataAvailable: true }).consideredWeeks).toBe(1);
     });
 
-    it('needs MIN_OBSERVED_WEEKS weeks, not one more or one fewer', () => {
-      const observedWeeks = (n: number) =>
-        [1, 2, 3, 4, 5, 6].map((w) => week(w, 10, 8, { observed: w <= n }));
-      expect(categorise(observedWeeks(MIN_OBSERVED_WEEKS - 1))).toBe('NOT_OBSERVED');
-      expect(categorise(observedWeeks(MIN_OBSERVED_WEEKS))).not.toBe('NOT_OBSERVED');
+    it('needs at least MIN_OBSERVED_WEEKS observed week with work', () => {
+      expect(MIN_OBSERVED_WEEKS).toBeGreaterThanOrEqual(1);
+      expect(categorise([week(1, 10, 8, { observed: false })])).toBe('NOT_OBSERVED');
     });
 
     it('ignores weeks with nothing assigned rather than counting them against the student', () => {
-      // Week 3 set no work. Solving none of nothing is not a weak week.
-      const weeks = [week(1, 10, 8), week(2, 10, 8), week(3, 0, 0), week(4, 10, 8), week(5, 10, 8), week(6, 10, 8)];
+      // Week 2 set no work. Solving none of nothing is not a weak week.
+      const weeks = [week(1, 10, 8), week(2, 0, 0), week(3, 10, 8)];
       const verdict = categoriseStudent({ weeks, dataAvailable: true });
-      expect(verdict.category).toBe('CONSISTENT_SOLVER');
-      expect(verdict.consideredWeeks).toBe(5);
+      expect(verdict.category).toBe('SOLVING_WELL');
+      expect(verdict.consideredWeeks).toBe(2);
     });
 
     it('does not treat an empty period as anything but unobserved', () => {
@@ -130,10 +105,9 @@ describe('categoriseStudent', () => {
 
   it('states the evidence for its verdict', () => {
     const verdict = categoriseStudent({
-      weeks: [1, 2, 3, 4, 5, 6].map((n) => week(n, 10, 1)),
+      weeks: [week(1, 10, 1)],
       dataAvailable: true,
     });
-    expect(verdict.because).toContain('20%');
     expect(verdict.overallPercent).toBeCloseTo(0.1);
   });
 });
