@@ -608,6 +608,21 @@ function AssignmentsPageInner() {
     (a) => a.campusId === targetCampusId && a.batchId === null,
   );
 
+  // Cluster mode: campuses in the cluster that already have this cohort's assignment on this
+  // date. The server refuses the whole request in that case, so say so before the click.
+  const clusterCampusIds = new Set(
+    campuses.filter((c) => targetCluster !== null && c.cluster === targetCluster).map((c) => c.id),
+  );
+  const clusterTaken =
+    targetCampusId === null && targetCluster !== null && globalBatchCode !== null
+      ? (existingForDay.data ?? []).filter(
+          (a) =>
+            a.campusId !== null &&
+            clusterCampusIds.has(a.campusId) &&
+            a.batchCode?.toUpperCase() === globalBatchCode,
+        )
+      : [];
+
   const targetCampusName =
     campuses.find((entry) => entry.id === targetCampusId)?.name ??
     (targetCluster !== null ? `Cluster ${targetCluster}` : '');
@@ -835,6 +850,14 @@ function AssignmentsPageInner() {
               </div>
             ) : null}
 
+            {clusterTaken.length > 0 ? (
+              <div className="rounded-lg border border-[var(--color-warning)] bg-[var(--color-warning-soft)] px-3 py-2 text-xs text-[var(--color-warning)]">
+                {dayKey} already has a {globalBatchCode} assignment for{' '}
+                {clusterTaken.map((a) => a.campusName).join(', ')}. Change the date (the next
+                day is usually what you want) or edit the existing assignment.
+              </div>
+            ) : null}
+
             {/*
               Target Batch, resolved *within* the chosen campus. Required, and never
               pre-selected: a mentor must actively pick Foundation, Intermediate, or
@@ -984,6 +1007,7 @@ function AssignmentsPageInner() {
                   !campusChoiceMade ||
                   // For "All campuses", require global batch selection
                   (targetCampusId === null && !globalBatchChoiceMade) ||
+                  clusterTaken.length > 0 ||
                   // For specific campus, require batch selection if batches exist
                   (targetCampusId !== null && batchSelectionRequired && !batchChoiceMade) ||
                   targetBatchIds.some((id) => takenBatchIds.has(id)) ||
