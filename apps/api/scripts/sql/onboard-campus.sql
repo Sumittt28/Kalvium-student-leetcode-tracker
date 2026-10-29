@@ -9,14 +9,16 @@
 --   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
 --     -v campus_code=TAU -v campus_name='TAU University' -v expected_count=20 \
 --     -v roster_file=/path/to/tau_roster.sql \
---     [-v effective_day=2026-10-29] [-v finish=ROLLBACK] \
+--     [-v effective_day=2026-10-27] [-v finish=ROLLBACK] \
 --     -f apps/api/scripts/sql/onboard-campus.sql
 --
 -- roster_file contains one statement:
 --   INSERT INTO roster VALUES ('a.b.s86@kalvium.community','LeetCodeHandleOrNULL',3), ...;
 -- where the last value is the group/cohort: 1 -> C1, 2 -> C2, 3 -> C3.
 --
--- `finish` defaults to COMMIT. Pass -v finish=ROLLBACK for a dry run that changes nothing.
+-- `effective_day` is the cohort's REAL first day (e.g. the session day), not necessarily today:
+-- enrolment and placement are dated from it, and Day 1 of the assignments must not precede it.
+-- It defaults to today (IST). `finish` defaults to COMMIT. Pass -v finish=ROLLBACK for a dry run that changes nothing.
 -- The campus is created with codingHoursEnabled = false on purpose: enabling it puts it in
 -- every picker AND in "All campuses" targeting, so do that only once its Day 1 is ready.
 
@@ -73,8 +75,11 @@ FROM campuses c, (VALUES ('C1', 1), ('C2', 2), ('C3', 3)) AS v(code, so)
 WHERE c.code = :'campus_code';
 
 -- name = email is the existing convention when a roster carries no names.
-INSERT INTO students (id, name, email, "leetcodeUsername", "campusId", "batchId", cohort, status, "updatedAt")
-SELECT gen_random_uuid(), t.email, t.email, t.handle, c.id, b.id, t.grp, 'ACTIVE', now()
+-- createdAt = midnight IST at the start of effective_day. It is the "enrolled from" day: the
+-- rollup skips any day before it, so it must not be later than the first assignment day.
+INSERT INTO students (id, name, email, "leetcodeUsername", "campusId", "batchId", cohort, status, "createdAt", "updatedAt")
+SELECT gen_random_uuid(), t.email, t.email, t.handle, c.id, b.id, t.grp, 'ACTIVE',
+       (:'effective_day')::date::timestamp - interval '5 hours 30 minutes', now()
 FROM roster t
 JOIN campuses c ON c.code = :'campus_code'
 JOIN batches b ON b."campusId" = c.id AND b.code = 'C' || t.grp;

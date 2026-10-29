@@ -36,14 +36,18 @@ this repo (they hold student emails); only the method and the reusable SQL are.
    alone would remove people who *are* on the roster. Fill in missing emails from the roster.
 5. **Run `apps/api/scripts/sql/onboard-campus.sql`** (dry-run first with `-v finish=ROLLBACK`).
    It creates the campus (disabled), `C1`/`C2`/`C3`, the students, and the campus + batch
-   placement history, asserting every count.
+   placement history, asserting every count. Pass `-v effective_day=` as the cohort's **real
+   first day** (e.g. the session day), not today: enrolment and placement are dated from it,
+   and the rollup skips any day before a student's enrolment. Getting this wrong makes Day 1
+   silently unscored.
 6. **Mentors.** Grant campus access in Admin -> Mentors (`PUT /admin/mentors/:id/campuses`).
 7. **Day 1.** Create assignments per campus in the Assignments page - one per batch
-   (`C1` -> Belt 5 sets, `C2` -> Belt 6 sets, `C3` -> the placement `G2-D*` sets). If Day 1
-   is already past, backfill it: create the assignments, then **upsert** `daily_statuses`
-   (the sync cron has already written empty rows with a NULL assignment, so a plain INSERT
-   collides on `(studentId, dayKey)`) and rebuild `daily_problem_statuses` from same-day
-   submissions.
+   (`C1` -> Belt 5 sets, `C2` -> Belt 6 sets, `C3` -> the placement `G2-D*` sets). If the day
+   has already passed, backfill it with `apps/api/scripts/sql/backfill-assignment-day.sql`: it
+   creates the assignments, **upserts** `daily_statuses` (the sync cron has already written
+   empty rows with a NULL assignment, so a plain INSERT collides on `(studentId, dayKey)`) and
+   rebuilds `daily_problem_statuses` from same-day submissions. It refuses to run if any
+   student was enrolled after the day, or the campus already has assignments that day.
 8. **Enable** `codingHoursEnabled` only now (Admin, or
    `UPDATE campuses SET "codingHoursEnabled" = true WHERE code = '...'`). Campus lists are cached;
    they refresh within minutes or on the next sync.
@@ -66,3 +70,4 @@ day's questions. Until campus clusters exist, assign campuses on a different wee
 | 29 Oct 2026 | Alliance: 40 non-roster students + 4 "not part" archived; 34 active across `C1`/`C2`/`C3`; Day 1 (28 Oct) backfilled |
 | 29 Oct 2026 | TAU: 20 students (7 / 9 / 4 across C1/C2/C3); campus enabled |
 | 29 Oct 2026 | CKB: 28 students (1 / 3 / 24 across C1/C2/C3); campus enabled |
+| 29 Oct 2026 | TAU (Apollo University) and CKB (Chitkara Baddi): enrolment back-dated to 27 Oct; Day 1 (28 Oct) backfilled - 6 assignments, 48 students |
