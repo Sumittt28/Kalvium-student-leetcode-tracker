@@ -42,6 +42,18 @@ export class CreateAssignmentDto {
   campus?: string;
 
   /**
+   * Target a whole cluster of campuses that share a schedule. Requires `batches` to be a
+   * cohort batch code (C1/C2/C3); one assignment is created per campus in the cluster that
+   * has that batch. Mutually exclusive with `campus`.
+   */
+  @ApiPropertyOptional({ example: 2, description: 'Campus cluster number.' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  cluster?: number;
+
+  /**
    * Which batches receive this problem set.
    *
    * Omitted means "every batch in the selected campus" and creates a **single** row that

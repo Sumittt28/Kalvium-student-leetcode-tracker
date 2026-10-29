@@ -358,6 +358,9 @@ model Campus {
   /// Whether Coding Hours 2.0 is enabled for this campus. Only enabled campuses appear
   /// in assignment creation and filters.
   codingHoursEnabled Boolean @default(false)
+  /// Campuses that started together and share a schedule. Assignments are triggered per
+  /// cluster (never "all campuses"), so a campus a week behind never gets the wrong day.
+  cluster Int?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

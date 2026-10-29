@@ -96,6 +96,8 @@ export interface CampusSummary {
   description: string | null;
   status: CampusStatus;
   sortOrder: number;
+  /** Schedule cluster (campuses that started together), or null if unassigned. */
+  cluster: number | null;
   /** Active students only — archived students are not part of a campus's current size. */
   studentCount: number;
   /** Active batches at this campus, in display order. */

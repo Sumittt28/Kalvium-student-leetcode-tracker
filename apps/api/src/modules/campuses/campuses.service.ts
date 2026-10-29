@@ -846,6 +846,7 @@ export class CampusesService {
       description: string | null;
       status: string;
       sortOrder: number;
+      cluster: number | null;
     },
     studentCount: number,
     batchCount: number,
@@ -857,6 +858,7 @@ export class CampusesService {
       description: campus.description,
       status: campus.status as CampusSummary['status'],
       sortOrder: campus.sortOrder,
+      cluster: campus.cluster,
       studentCount,
       batchCount,
     };

@@ -713,6 +713,7 @@ export class StudentsService {
         description: c.description,
         status: c.status,
         sortOrder: c.sortOrder,
+        cluster: c.cluster,
         studentCount: c._count.students,
         batchCount: c._count.batches,
       })),

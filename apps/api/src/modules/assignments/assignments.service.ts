@@ -115,7 +115,7 @@ export class AssignmentsService {
       throw new BadRequestException(`"${dto.dayKey}" is not a valid date (expected YYYY-MM-DD)`);
     }
 
-    const scopes = await this.resolveTargetScopes(dto.campus, dto.batches);
+    const scopes = await this.resolveTargetScopes(dto.campus, dto.batches, dto.cluster);
 
     // Each audience's cohort. An explicit `dto.cohort` always wins; otherwise a batch named
     // C1/C2/C3 carries its own cohort (batches are organised one per cohort), so the
@@ -211,7 +211,11 @@ export class AssignmentsService {
   private async resolveTargetScopes(
     campusSelector: string | undefined,
     batchSelectors: string[] | undefined,
+    cluster?: number,
   ): Promise<AudienceScope[]> {
+    if (cluster !== undefined) {
+      return this.resolveClusterScopes(campusSelector, batchSelectors, cluster);
+    }
     const campusRaw = (campusSelector ?? '').trim();
     const campusId =
       campusRaw === '' || ALL_TARGETS.has(campusRaw.toUpperCase())
@@ -285,6 +289,42 @@ export class AssignmentsService {
       if (!scopes.some((existing) => existing.batchId === scope.batchId)) scopes.push(scope);
     }
     return scopes;
+  }
+
+  /**
+   * One audience per campus in the cluster that has the requested cohort batch. Campuses
+   * without that batch (e.g. no C1 group) are skipped; a cluster with none is an error.
+   */
+  private async resolveClusterScopes(
+    campusSelector: string | undefined,
+    batchSelectors: string[] | undefined,
+    cluster: number,
+  ): Promise<AudienceScope[]> {
+    const campusRaw = (campusSelector ?? '').trim();
+    if (campusRaw !== '' && !ALL_TARGETS.has(campusRaw.toUpperCase())) {
+      throw new BadRequestException('Pick either a cluster or a single campus, not both.');
+    }
+    const codes = (batchSelectors ?? []).map((b) => b.trim().toUpperCase()).filter(Boolean);
+    if (codes.length !== 1 || !/^C[1-9]$/.test(codes[0]!)) {
+      throw new BadRequestException(
+        'A cluster assignment must name exactly one cohort batch (C1, C2 or C3).',
+      );
+    }
+    const matching = await this.prisma.batch.findMany({
+      where: {
+        code: { equals: codes[0]!, mode: 'insensitive' },
+        status: 'ACTIVE',
+        campus: { cluster, codingHoursEnabled: true, status: 'ACTIVE' },
+      },
+      select: { id: true, campusId: true },
+      orderBy: { campus: { sortOrder: 'asc' } },
+    });
+    if (matching.length === 0) {
+      throw new BadRequestException(
+        `No campus in cluster ${cluster} has an active ${codes[0]} batch.`,
+      );
+    }
+    return matching.map((b) => ({ campusId: b.campusId, batchId: b.id }));
   }
 
   async update(id: string, dto: UpdateAssignmentDto): Promise<AssignmentSummary> {

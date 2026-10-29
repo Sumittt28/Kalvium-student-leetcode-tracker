@@ -520,6 +520,8 @@ function AssignmentsPageInner() {
    * make the target depend on where they happened to be looking.
    */
   const [targetCampusId, setTargetCampusId] = useState<string | null>(null);
+  // Cluster mode: campuses that share a schedule. Replaces the old "All campuses" option.
+  const [targetCluster, setTargetCluster] = useState<number | null>(null);
   const [campusChoiceMade, setCampusChoiceMade] = useState(false);
 
   /**
@@ -607,7 +609,13 @@ function AssignmentsPageInner() {
   );
 
   const targetCampusName =
-    campuses.find((entry) => entry.id === targetCampusId)?.name ?? 'All campuses';
+    campuses.find((entry) => entry.id === targetCampusId)?.name ??
+    (targetCluster !== null ? `Cluster ${targetCluster}` : '');
+  const clusterNumbers = Array.from(
+    new Set(campuses.map((c) => c.cluster).filter((c): c is number => c !== null)),
+  ).sort((a, b) => a - b);
+  const clusterCampusNames = (n: number) =>
+    campuses.filter((c) => c.cluster === n).map((c) => c.name).join(', ');
 
   const create = useMutation({
     mutationFn: () =>
@@ -615,6 +623,7 @@ function AssignmentsPageInner() {
         dayKey,
         topic: topic || undefined,
         campus: targetCampusId ?? undefined,
+        cluster: targetCampusId === null ? (targetCluster ?? undefined) : undefined,
         // When "All campuses" is selected, use the global batch code (C1/C2/C3) — the API derives the cohort from the code
         // When a specific campus is selected, use the batch IDs
         batches: targetCampusId === null
@@ -631,6 +640,7 @@ function AssignmentsPageInner() {
       setUrls(Array(DEFAULT_PROBLEM_SLOTS).fill(''));
       setTopic('');
       setTargetCampusId(null);
+      setTargetCluster(null);
       setCampusChoiceMade(false);
       setTargetBatchIds([]);
       setBatchChoiceMade(false);
@@ -738,28 +748,31 @@ function AssignmentsPageInner() {
                 Campus <span className="text-[var(--color-danger)]">*</span>
               </span>
               <div className="flex flex-wrap gap-2">
-                {/* "All campuses" is admin-only — mentors must choose their assigned campus */}
-                {isAdmin && (
-                  <button
-                    type="button"
-                    aria-pressed={campusChoiceMade && targetCampusId === null}
-                    onClick={() => {
-                      setTargetCampusId(null);
-                      setCampusChoiceMade(true);
-                      // A campus change invalidates any batch choice: batch ids belong to
-                      // one campus, and carrying them across would target the wrong one.
-                      setTargetBatchIds([]);
-                      setBatchChoiceMade(false);
-                    }}
-                    className={
-                      campusChoiceMade && targetCampusId === null
-                        ? 'rounded-lg bg-[var(--color-brand)] px-3 py-1.5 text-sm font-medium text-[var(--color-brand-fg)]'
-                        : 'rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm font-medium text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]'
-                    }
-                  >
-                    All campuses
-                  </button>
-                )}
+                {/* Clusters are admin-only; "All campuses" no longer exists because campuses run on different weeks. */}
+                {isAdmin &&
+                  clusterNumbers.map((n) => {
+                    const on = campusChoiceMade && targetCampusId === null && targetCluster === n;
+                    return (
+                      <button
+                        key={`cluster-${n}`}
+                        type="button"
+                        aria-pressed={on}
+                        title={clusterCampusNames(n)}
+                        onClick={() => {
+                          setTargetCampusId(null);
+                          setTargetCluster(n);
+                          setCampusChoiceMade(true);
+                          setTargetBatchIds([]);
+                          setBatchChoiceMade(false);
+                          setGlobalBatchCode(null);
+                          setGlobalBatchChoiceMade(false);
+                        }}
+                        className={on ? 'rounded-lg bg-[var(--color-brand)] px-3 py-1.5 text-sm font-medium text-[var(--color-brand-fg)]' : 'rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm font-medium text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]'}
+                      >
+                        Cluster {n}
+                      </button>
+                    );
+                  })}
                 {campuses.map((entry) => {
                   const isSelected = campusChoiceMade && targetCampusId === entry.id;
                   return (
@@ -769,6 +782,7 @@ function AssignmentsPageInner() {
                       aria-pressed={isSelected}
                       onClick={() => {
                         setTargetCampusId(entry.id);
+                        setTargetCluster(null);
                         setCampusChoiceMade(true);
                         setTargetBatchIds([]);
                         setBatchChoiceMade(false);
@@ -790,24 +804,9 @@ function AssignmentsPageInner() {
             {campusChoiceMade && targetCampusId === null ? (
               <div>
                 <span className="mb-1.5 block text-xs font-medium">
-                  Target Batch <span className="text-[var(--color-fg-muted)]">(across all campuses)</span>
+                  Target Batch <span className="text-[var(--color-fg-muted)]">({targetCluster !== null ? clusterCampusNames(targetCluster) : ''})</span>
                 </span>
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    aria-pressed={globalBatchChoiceMade && globalBatchCode === null}
-                    onClick={() => {
-                      setGlobalBatchCode(null);
-                      setGlobalBatchChoiceMade(true);
-                    }}
-                    className={
-                      globalBatchChoiceMade && globalBatchCode === null
-                        ? 'rounded-lg bg-[var(--color-brand)] px-3 py-1.5 text-sm font-medium text-[var(--color-brand-fg)]'
-                        : 'rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm font-medium text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]'
-                    }
-                  >
-                    All Batches
-                  </button>
                   {(['C1', 'C2', 'C3'] as const).map((code) => (
                     <button
                       key={code}
@@ -830,11 +829,7 @@ function AssignmentsPageInner() {
                 </div>
                 {!globalBatchChoiceMade ? (
                   <p className="mt-1.5 text-xs text-[var(--color-fg-subtle)]">
-                    Pick C1, C2 or C3 to target that cohort across all campuses, or "All Batches" for everyone.
-                  </p>
-                ) : globalBatchCode === null ? (
-                  <p className="mt-1.5 text-xs text-[var(--color-warning)]">
-                    This will assign to ALL students at ALL campuses (C1 + C2 + C3).
+                    Pick the cohort (C1, C2 or C3). One assignment is created for every campus in this cluster that has that batch.
                   </p>
                 ) : null}
               </div>
@@ -849,13 +844,7 @@ function AssignmentsPageInner() {
               and someone who has not been placed into one has no level's work to do —
               a campus-wide assignment still reaches them.
             */}
-            {targetCampusId === null ? (
-              campusChoiceMade ? (
-                <p className="text-xs text-[var(--color-fg-subtle)]">
-                  With every campus selected, this assignment applies to all batches.
-                </p>
-              ) : null
-            ) : batchesLoading ? (
+            {targetCampusId === null ? null : batchesLoading ? (
               <p className="text-xs text-[var(--color-fg-subtle)]">Loading batches…</p>
             ) : batches.length > 0 ? (
               <div>
@@ -972,9 +961,7 @@ function AssignmentsPageInner() {
                       : batchSelectionRequired && !batchChoiceMade
                         ? 'Pick a target batch above to see what will be created.'
                         : targetCampusId === null
-                          ? `${filledCount} problem${filledCount === 1 ? '' : 's'} on ${dayKey} for All Campuses — ${
-                              globalBatchCode === null ? 'All Batches (C1 + C2 + C3)' : globalBatchCode
-                            }.`
+                          ? `${filledCount} problem${filledCount === 1 ? '' : 's'} on ${dayKey} for ${targetCampusName} (${targetCluster !== null ? clusterCampusNames(targetCluster) : ''}) — ${globalBatchCode}.`
                           : `${filledCount} problem${filledCount === 1 ? '' : 's'} on ${dayKey} for ${
                               targetBatchIds.length === 0
                                 ? `${targetCampusName} — All batches`

@@ -270,10 +270,18 @@ function makeService(
           : null,
       ),
       // Backs the cohort lookup `create` does for the batches it is about to target.
-      findMany: vi.fn(async ({ where }: { where: { id?: { in?: string[] } } }) =>
-        (where.id?.in ?? [])
-          .filter((id) => BATCH_DIRECTORY[id])
-          .map((id) => ({ id, code: BATCH_DIRECTORY[id]!.code })),
+      findMany: vi.fn(
+        async ({ where }: { where: { id?: { in?: string[] }; campus?: { cluster?: number } } }) => {
+          // Cluster lookup: pretend cluster 1 holds the VELS C1 and C2 batches only.
+          if (where.campus?.cluster !== undefined) {
+            return where.campus.cluster === 1
+              ? [{ id: VELS_C2, campusId: VELS }]
+              : [];
+          }
+          return (where.id?.in ?? [])
+            .filter((id) => BATCH_DIRECTORY[id])
+            .map((id) => ({ id, code: BATCH_DIRECTORY[id]!.code }));
+        },
       ),
     },
     campus: {
@@ -834,5 +842,49 @@ describe('AssignmentsService.remove', () => {
 
     await expect(service.remove('00000000-0000-4000-8000-000000000000')).rejects.toThrow();
     expect(rollup.recomputeDay).not.toHaveBeenCalled();
+  });
+});
+
+describe('AssignmentsService.create — clusters', () => {
+  it('creates one cohort assignment per campus in the cluster', async () => {
+    const { service, rows } = makeService();
+    await service.create(
+      { dayKey: '2026-10-29', cluster: 1, batches: ['C2'], problemUrls: PROBLEM_URLS },
+      'user-1',
+    );
+    expect(rows.map((r) => r.batchId)).toEqual([VELS_C2]);
+  });
+
+  it('requires a single cohort batch', async () => {
+    const { service } = makeService();
+    await expect(
+      service.create({ dayKey: '2026-10-29', cluster: 1, problemUrls: PROBLEM_URLS }, 'user-1'),
+    ).rejects.toThrow(BadRequestException);
+    await expect(
+      service.create(
+        { dayKey: '2026-10-29', cluster: 1, batches: ['C1', 'C2'], problemUrls: PROBLEM_URLS },
+        'user-1',
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('refuses a cluster together with a single campus', async () => {
+    const { service } = makeService();
+    await expect(
+      service.create(
+        { dayKey: '2026-10-29', cluster: 1, campus: 'VELS', batches: ['C2'], problemUrls: PROBLEM_URLS },
+        'user-1',
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('refuses an empty cluster', async () => {
+    const { service } = makeService();
+    await expect(
+      service.create(
+        { dayKey: '2026-10-29', cluster: 9, batches: ['C2'], problemUrls: PROBLEM_URLS },
+        'user-1',
+      ),
+    ).rejects.toThrow(BadRequestException);
   });
 });
