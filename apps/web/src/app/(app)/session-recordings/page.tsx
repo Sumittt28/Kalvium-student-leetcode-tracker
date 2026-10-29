@@ -16,10 +16,10 @@ type SessionRecording = {
   topic: string | null;
 };
 
-const COHORT_INFO: Record<number, { group: string; belt: string; color: 'brand' | 'info' }> = {
-  1: { group: 'G1', belt: 'Belt 4', color: 'brand' },
-  2: { group: 'G1', belt: 'Belt 5', color: 'brand' },
-  3: { group: 'G2', belt: 'Belt 6+', color: 'info' },
+const COHORT_INFO: Record<number, { belt: string; color: 'brand' | 'info' }> = {
+  1: { belt: 'Belt 4', color: 'brand' },
+  2: { belt: 'Belt 5', color: 'brand' },
+  3: { belt: 'Belt 6+', color: 'info' },
 };
 
 export default function SessionRecordingsPage() {
@@ -116,7 +116,7 @@ export default function SessionRecordingsPage() {
                 title={
                   <div className="flex items-center gap-2">
                     <Video className="h-4 w-4" />
-                    <Badge tone={info.color}>{info.group} · Cohort {cohort}</Badge>
+                    <Badge tone={info.color}>Cohort {cohort}</Badge>
                   </div>
                 }
                 description={`${info.belt} students · ${recs.length} recording${recs.length !== 1 ? 's' : ''}`}

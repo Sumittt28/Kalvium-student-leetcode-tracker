@@ -85,10 +85,15 @@ const CAMPUS_DIRECTORY: Record<string, { name: string; code: string }> = {
   [SRM]: { name: 'SRM University', code: 'SRM' },
 };
 
+const VELS_C1 = 'batch-vels-c1';
+const VELS_C2 = 'batch-vels-c2';
+
 const BATCH_DIRECTORY: Record<
   string,
   { name: string; code: string; campusId: string; status: string }
 > = {
+  [VELS_C1]: { name: 'C1', code: 'C1', campusId: VELS, status: 'ACTIVE' },
+  [VELS_C2]: { name: 'C2', code: 'C2', campusId: VELS, status: 'ACTIVE' },
   [VELS_FOUNDATION]: { name: 'Foundation Level', code: 'A', campusId: VELS, status: 'ACTIVE' },
   [VELS_INTERMEDIATE]: { name: 'Intermediate Level', code: 'B', campusId: VELS, status: 'ACTIVE' },
   [SRM_FOUNDATION]: { name: 'Foundation Level', code: 'A', campusId: SRM, status: 'ACTIVE' },
@@ -263,6 +268,12 @@ function makeService(
         where.id && BATCH_DIRECTORY[where.id]
           ? { id: where.id, ...BATCH_DIRECTORY[where.id] }
           : null,
+      ),
+      // Backs the cohort lookup `create` does for the batches it is about to target.
+      findMany: vi.fn(async ({ where }: { where: { id?: { in?: string[] } } }) =>
+        (where.id?.in ?? [])
+          .filter((id) => BATCH_DIRECTORY[id])
+          .map((id) => ({ id, code: BATCH_DIRECTORY[id]!.code })),
       ),
     },
     campus: {
@@ -543,6 +554,74 @@ describe('AssignmentsService.create — widening targets', () => {
 
     // Foundation must not have been created "on the way" to discovering the clash.
     expect(rows).toHaveLength(1);
+  });
+});
+
+describe('AssignmentsService.create — cohort follows the batch', () => {
+  const createdCohort = (prisma: ReturnType<typeof makeService>['prisma'], call = 0) =>
+    (prisma.assignment.create.mock.calls[call]![0] as { data: { cohort: number | null } }).data.cohort;
+
+  it('stamps cohort 2 on an assignment aimed at the C2 batch', async () => {
+    const { service, prisma } = makeService();
+    await service.create(
+      { dayKey: '2026-10-29', campus: 'VELS', batches: ['C2'], problemUrls: PROBLEM_URLS },
+      'user-1',
+    );
+    expect(createdCohort(prisma)).toBe(2);
+  });
+
+  it('stamps cohort 1 on the C1 batch', async () => {
+    const { service, prisma } = makeService();
+    await service.create(
+      { dayKey: '2026-10-29', campus: 'VELS', batches: ['C1'], problemUrls: PROBLEM_URLS },
+      'user-1',
+    );
+    expect(createdCohort(prisma)).toBe(1);
+  });
+
+  it('lets an explicit cohort win over the batch code', async () => {
+    const { service, prisma } = makeService();
+    await service.create(
+      { dayKey: '2026-10-29', campus: 'VELS', batches: ['C2'], cohort: 3, problemUrls: PROBLEM_URLS },
+      'user-1',
+    );
+    expect(createdCohort(prisma)).toBe(3);
+  });
+
+  it('leaves the cohort empty for a batch that does not name one', async () => {
+    const { service, prisma } = makeService();
+    await service.create(
+      { dayKey: '2026-10-29', campus: 'VELS', batches: ['A'], problemUrls: PROBLEM_URLS },
+      'user-1',
+    );
+    expect(createdCohort(prisma)).toBeNull();
+  });
+
+  it('lets C1 and C2 at one campus each have their own set on the same day', async () => {
+    const { service, rows } = makeService();
+    await service.create(
+      { dayKey: '2026-10-29', campus: 'VELS', batches: ['C1'], problemUrls: PROBLEM_URLS },
+      'user-1',
+    );
+    await service.create(
+      { dayKey: '2026-10-29', campus: 'VELS', batches: ['C2'], problemUrls: PROBLEM_URLS },
+      'user-1',
+    );
+    expect(rows.map((row) => row.batchId).sort()).toEqual([VELS_C1, VELS_C2].sort());
+  });
+
+  it('still refuses a second assignment for the same C-batch and day', async () => {
+    const { service } = makeService();
+    await service.create(
+      { dayKey: '2026-10-29', campus: 'VELS', batches: ['C2'], problemUrls: PROBLEM_URLS },
+      'user-1',
+    );
+    await expect(
+      service.create(
+        { dayKey: '2026-10-29', campus: 'VELS', batches: ['C2'], problemUrls: PROBLEM_URLS },
+        'user-1',
+      ),
+    ).rejects.toThrow(BadRequestException);
   });
 });
 

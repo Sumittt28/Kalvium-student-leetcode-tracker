@@ -23,6 +23,7 @@ import {
 } from '@nestjs/common';
 import {
   CACHE_TTL,
+  cohortForBatchCode,
   describeScope,
   extractProblemSlug,
   isLegalScope,
@@ -116,24 +117,33 @@ export class AssignmentsService {
 
     const scopes = await this.resolveTargetScopes(dto.campus, dto.batches);
 
-    // Check for clashes. Cohort logic:
+    // Each audience's cohort. An explicit `dto.cohort` always wins; otherwise a batch named
+    // C1/C2/C3 carries its own cohort (batches are organised one per cohort), so the
+    // `cohort` column can never disagree with the batch an assignment targets.
+    const targetBatchIds = scopes.map((scope) => scope.batchId).filter((id): id is string => id !== null);
+    const targetBatches = targetBatchIds.length
+      ? await this.prisma.batch.findMany({
+          where: { id: { in: targetBatchIds } },
+          select: { id: true, code: true },
+        })
+      : [];
+    const batchCodeById = new Map(targetBatches.map((batch) => [batch.id, batch.code]));
+    const cohortOf = (scope: AudienceScope): number | null =>
+      dto.cohort ??
+      (scope.batchId ? cohortForBatchCode(batchCodeById.get(scope.batchId) ?? null) : null);
+
+    // Check for clashes. Cohort logic, per audience:
     // - Assignment for ALL cohorts (null) clashes with any existing assignment for that batch
-    // - Assignment for a specific cohort clashes with ALL cohorts (null) or same cohort
+    // - Assignment for a specific cohort clashes with ALL cohorts (null) or the same cohort
     // - Assignment for cohort 1 does NOT clash with cohort 2 (different audiences)
     const clashes = await this.prisma.assignment.findMany({
       where: {
         dayKey: dto.dayKey,
-        // Match any of the target scopes (campus/batch combinations)
-        OR: scopes.map((scope) => ({ ...scope })),
-        // Cohort clash condition: only clash if cohorts overlap
-        ...(dto.cohort
-          ? {
-              // Creating for specific cohort: clash with null (all) or same cohort
-              AND: [{ OR: [{ cohort: null }, { cohort: dto.cohort }] }],
-            }
-          : {
-              // Creating for ALL cohorts: clash with anything (no additional filter)
-            }),
+        // Match any of the target scopes (campus/batch combinations), each with its own cohort rule
+        OR: scopes.map((scope) => {
+          const cohort = cohortOf(scope);
+          return cohort ? { ...scope, OR: [{ cohort: null }, { cohort }] } : { ...scope };
+        }),
       },
       include: {
         batch: { select: { name: true } },
@@ -161,7 +171,7 @@ export class AssignmentsService {
             dayKey: dto.dayKey,
             campusId: scope.campusId,
             batchId: scope.batchId,
-            cohort: dto.cohort ?? null,
+            cohort: cohortOf(scope),
             // Frozen at creation — see the schema note on `originalBatchId`.
             originalCampusId: scope.campusId,
             originalBatchId: scope.batchId,

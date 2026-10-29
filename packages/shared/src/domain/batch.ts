@@ -178,3 +178,23 @@ export function resolvePlacementEffectiveDate(input: {
 }): DayKey {
   return input.hasPriorPlacements ? input.todayDayKey : input.enrolmentDayKey;
 }
+
+
+/**
+ * The cohort a batch code stands for, or `null` when the code does not name one.
+ *
+ * Batches are organised one per cohort: `C1`, `C2` and `C3` hold cohort 1, 2 and 3. That
+ * 1:1 layout is what lets an assignment aimed at a batch be told apart from one aimed at a
+ * sibling batch — audience resolution matches on campus and batch, so two cohorts sharing
+ * a batch would share a problem set. Deriving the cohort from the code keeps an
+ * assignment's `cohort` column in step with the batch it targets without anyone having to
+ * enter it twice.
+ *
+ * Case-insensitive, and strict: only exactly `C` plus a single digit 1-3 qualifies, so a
+ * legacy code such as `G1` or a campus-specific level name never gets a cohort invented
+ * for it.
+ */
+export function cohortForBatchCode(code: string | null | undefined): number | null {
+  const match = /^C([123])$/i.exec((code ?? '').trim());
+  return match ? Number(match[1]) : null;
+}

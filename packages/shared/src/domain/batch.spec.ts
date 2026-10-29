@@ -9,6 +9,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  cohortForBatchCode,
   deriveBatchCode,
   isRedundantMove,
   normaliseBatchCode,
@@ -202,5 +203,31 @@ describe('resolveFrozenField', () => {
     expect(resolveFrozenField(null, 'sliding-window-assignment', true)).toBe(
       'sliding-window-assignment',
     );
+  });
+});
+
+
+describe('cohortForBatchCode', () => {
+  it('maps C1, C2 and C3 to cohorts 1, 2 and 3', () => {
+    expect(cohortForBatchCode('C1')).toBe(1);
+    expect(cohortForBatchCode('C2')).toBe(2);
+    expect(cohortForBatchCode('C3')).toBe(3);
+  });
+
+  it('is case-insensitive and ignores surrounding whitespace', () => {
+    expect(cohortForBatchCode('c2')).toBe(2);
+    expect(cohortForBatchCode(' C3 ')).toBe(3);
+  });
+
+  it('returns null for anything that does not name a cohort', () => {
+    expect(cohortForBatchCode('G1')).toBeNull();
+    expect(cohortForBatchCode('G2')).toBeNull();
+    expect(cohortForBatchCode('C4')).toBeNull();
+    expect(cohortForBatchCode('C0')).toBeNull();
+    expect(cohortForBatchCode('C12')).toBeNull();
+    expect(cohortForBatchCode('A')).toBeNull();
+    expect(cohortForBatchCode('')).toBeNull();
+    expect(cohortForBatchCode(null)).toBeNull();
+    expect(cohortForBatchCode(undefined)).toBeNull();
   });
 });
