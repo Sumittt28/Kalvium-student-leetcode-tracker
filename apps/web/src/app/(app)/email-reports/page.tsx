@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Download, FileSpreadsheet, Mail, Send } from 'lucide-react';
@@ -37,7 +38,13 @@ export default function EmailReportsPage() {
     ? (campuses.find((item) => item.code === campus)?.id ?? undefined)
     : undefined;
   const batchId = batch ? (batches.find((item) => item.code === batch)?.id ?? undefined) : undefined;
+  const router = useRouter();
   const [tab, setTab] = useState<number | 'ALL'>('ALL');
+  // Email reports send and record things, so they are admin-only; the campus team is view-only.
+  const meForGate = useQuery({ queryKey: ['me'], queryFn: api.me });
+  useEffect(() => {
+    if (meForGate.data && meForGate.data.role !== 'ADMIN') router.replace('/campus-analysis');
+  }, [meForGate.data, router]);
   const [blockerStudent, setBlockerStudent] = useState<DailyEmailReportStudentRow | null>(null);
   const [exporting, setExporting] = useState(false);
 

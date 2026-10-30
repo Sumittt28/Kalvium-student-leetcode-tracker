@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IsArray, IsIn, IsOptional, IsUUID, Matches } from 'class-validator';
 import { SYNC_MODES, type SyncMode } from '@dsa/shared';
 
-import { Audit, CurrentUser, Roles, type RequestUser } from '../../common/decorators';
+import { AllowsReadOnlyWrite, Audit, CurrentUser, Roles, type RequestUser } from '../../common/decorators';
 import { MentorScopeService } from '../campuses/mentor-scope.service';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { SyncService } from './sync.service';
@@ -36,7 +36,9 @@ export class SyncController {
     private readonly mentorScope: MentorScopeService,
   ) {}
 
+  // Refreshing the data a view-only user is looking at is not an edit: it only re-reads LeetCode.
   @Post()
+  @AllowsReadOnlyWrite()
   @Roles('ADMIN', 'MENTOR')
   @Audit('SYNC_STARTED', 'SyncJob')
   @ApiOperation({ summary: 'Start a sync. Returns immediately; poll the job for progress.' })

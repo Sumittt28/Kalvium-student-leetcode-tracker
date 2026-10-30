@@ -683,7 +683,8 @@ function AssignmentsPageInner() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ScopeFilter />
-          <Button
+          {isAdmin ? (
+<Button
             variant="primary"
             onClick={() =>
               setCreating((open) => {
@@ -705,6 +706,7 @@ function AssignmentsPageInner() {
             <Plus className="size-3.5" aria-hidden />
             New assignment
           </Button>
+          ) : null}
         </div>
       </header>
 

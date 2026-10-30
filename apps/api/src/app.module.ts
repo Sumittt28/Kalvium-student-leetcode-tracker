@@ -10,6 +10,7 @@ import { EnrolmentService } from './common/services/enrolment.service';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
+import { ReadOnlyGuard } from './common/guards/read-only.guard';
 import { ForcePasswordChangeGuard } from './common/guards/force-password-change.guard';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
@@ -109,6 +110,8 @@ class CoreModule {}
     // rate-limit.
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    // View-only: MENTOR/VIEWER may read but not write (see ReadOnlyGuard).
+    { provide: APP_GUARD, useClass: ReadOnlyGuard },
     { provide: APP_GUARD, useClass: ForcePasswordChangeGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },

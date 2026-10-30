@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { useCanEdit } from '@/lib/use-can-edit';
 import {
   SYNC_STATUS_LABELS,
   UNASSIGNED_BATCH_LABEL,
@@ -38,6 +39,7 @@ import {
 } from '@/components/ui';
 
 export default function StudentsPage() {
+  const canEdit = useCanEdit();
   const queryClient = useQueryClient();
   const fileInput = useRef<HTMLInputElement>(null);
   const searchParams = useSearchParams();
@@ -253,14 +255,16 @@ export default function StudentsPage() {
             <Download className="size-3.5" aria-hidden />
             Template
           </Button>
-          <Button
-            variant="primary"
-            onClick={() => fileInput.current?.click()}
-            loading={importMutation.isPending}
-          >
-            <Upload className="size-3.5" aria-hidden />
-            Import Excel
-          </Button>
+          {canEdit ? (
+            <Button
+              variant="primary"
+              onClick={() => fileInput.current?.click()}
+              loading={importMutation.isPending}
+            >
+              <Upload className="size-3.5" aria-hidden />
+              Import Excel
+            </Button>
+          ) : null}
           <input
             ref={fileInput}
             type="file"
@@ -585,6 +589,8 @@ export default function StudentsPage() {
                         </a>
                       ) : student.status === 'ARCHIVED' ? (
                         <span className="text-xs text-[var(--color-fg-subtle)]">Not linked</span>
+                      ) : !canEdit ? (
+                        <span className="text-xs text-[var(--color-fg-subtle)]">Not linked</span>
                       ) : (
                         // The gap is also the way to close it. Showing "Not linked" as
                         // dead text is what left 21 students permanently unactionable (§7).
@@ -627,7 +633,7 @@ export default function StudentsPage() {
                       )}
                     </Td>
                     <Td className="text-right">
-                      {student.status === 'ARCHIVED' ? (
+                      {student.status === 'ARCHIVED' || !canEdit ? (
                         <span className="text-xs text-[var(--color-fg-subtle)]">—</span>
                       ) : (
                         <span className="inline-flex gap-1">

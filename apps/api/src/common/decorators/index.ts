@@ -7,6 +7,7 @@ export const IS_PUBLIC_KEY = 'isPublic';
 export const ROLES_KEY = 'roles';
 export const AUDIT_KEY = 'audit';
 export const ALLOWS_UNCHANGED_PASSWORD_KEY = 'allowsUnchangedPassword';
+export const ALLOWS_READ_ONLY_WRITE_KEY = 'allowsReadOnlyWrite';
 
 /**
  * Marks a route as reachable without authentication.
@@ -31,6 +32,16 @@ export const Roles = (...roles: UserRole[]): MethodDecorator & ClassDecorator =>
  */
 export const AllowsUnchangedPassword = (): MethodDecorator & ClassDecorator =>
   SetMetadata(ALLOWS_UNCHANGED_PASSWORD_KEY, true);
+
+/**
+ * Lets a view-only account (MENTOR, VIEWER) call a route that is not a read.
+ *
+ * Opt *in*, and sparingly: it exists for the routes a view-only user still needs in order to
+ * use the tool at all - changing their own password, and refreshing the data they are
+ * looking at. Anything that edits programme data must never carry it.
+ */
+export const AllowsReadOnlyWrite = (): MethodDecorator & ClassDecorator =>
+  SetMetadata(ALLOWS_READ_ONLY_WRITE_KEY, true);
 
 export interface AuditMetadata {
   action: string;

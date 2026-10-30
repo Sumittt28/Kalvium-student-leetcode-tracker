@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 
-import {
+import { AllowsReadOnlyWrite,
   AllowsUnchangedPassword,
   CurrentUser,
   Public,
@@ -73,6 +73,7 @@ export class AuthController {
 
   @Post('change-password')
   @AllowsUnchangedPassword()
+  @AllowsReadOnlyWrite()
   @Roles('MENTOR', 'VIEWER', 'STUDENT')
   @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -86,6 +87,7 @@ export class AuthController {
 
   @Post('logout-all')
   @AllowsUnchangedPassword()
+  @AllowsReadOnlyWrite()
   @Roles('MENTOR', 'VIEWER', 'STUDENT')
   @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)

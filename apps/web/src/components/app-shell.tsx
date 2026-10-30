@@ -36,6 +36,7 @@ import {
 
 import { api, tokenStore } from '@/lib/api';
 import { cn, initials, timeAgo } from '@/lib/utils';
+import { useCanEdit } from '@/lib/use-can-edit';
 import { ForcePasswordChange } from './force-password-change';
 import { Badge, Button } from './ui';
 
@@ -66,6 +67,11 @@ const NAV = [
   // { href: '/infosys', label: 'Infosys Preparation', icon: GraduationCap },
   { href: '/admin', label: 'Admin', icon: Settings },
 ];
+
+/** Pages only admins use. The campus team is view-only, so these are not shown to mentors. */
+const ADMIN_ONLY_PAGES = new Set(['/admin', '/email-reports']);
+const navFor = (isAdmin: boolean) =>
+  NAV.filter((item) => isAdmin || !ADMIN_ONLY_PAGES.has(item.href));
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -162,7 +168,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
 
         <nav className="flex-1 space-y-0.5 px-3 py-2">
-          {NAV.map((item) => {
+          {navFor(user?.role === 'ADMIN').map((item) => {
             const active = pathname === item.href;
             const Icon = item.icon;
             return (
@@ -285,6 +291,7 @@ function CommandPalette({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const canEdit = useCanEdit();
   const router = useRouter();
   const [search, setSearch] = useState('');
 
@@ -331,7 +338,7 @@ function CommandPalette({
             heading="Pages"
             className="px-2 py-1 text-xs font-medium text-[var(--color-fg-subtle)]"
           >
-            {NAV.filter((item) =>
+            {navFor(canEdit).filter((item) =>
               item.label.toLowerCase().includes(search.toLowerCase()),
             ).map((item) => (
               <Command.Item
