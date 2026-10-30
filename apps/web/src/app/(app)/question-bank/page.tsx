@@ -7,10 +7,15 @@
  * questions to the existing Assignments page. It reads nothing about students and creates
  * nothing itself.
  *
- * The two groups are separate, first-class states, never one merged list. The selected group
- * lives in the URL (`?group=`) so a link, a refresh or the back button can never land on the
- * other group's questions by accident, and every filter is reset when the group changes so a
- * Group 1 belt can never silently narrow a Group 2 view.
+ * Questions are shown by cohort - C1, C2, C3 - the same names used for batches, assignments
+ * and analysis, plus an "Other belts" reference tab. Underneath, C1 and C2 are Belt 5 and Belt 6
+ * of the stored Group 1 and C3 is Group 2; `cohort-display` maps between the two, so no stored
+ * data or set key changes.
+ *
+ * Each tab is a separate, first-class state, never one merged list. The selected tab lives in
+ * the URL (`?cohort=`) so a link, a refresh or the back button can never land on another
+ * cohort's questions by accident, and every filter is reset when the tab changes. Old
+ * `?group=` links still work.
  */
 
 import Link from 'next/link';
@@ -19,10 +24,14 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, BookOpen, ChevronLeft, ChevronRight, Edit2, ExternalLink, Plus, Search, Trash2, X } from 'lucide-react';
 import {
+  COHORT_TABS,
+  COHORT_TAB_INFO,
   GROUP_1_PRACTICE_DAYS_PER_WEEK,
-  QUESTION_BANK_GROUPS,
-  QUESTION_BANK_GROUP_DESCRIPTIONS,
-  QUESTION_BANK_GROUP_LABELS,
+  cohortSetTitle,
+  cohortTabFromParam,
+  cohortTabOfSet,
+  cohortTabQuery,
+  type CohortTab,
   type QuestionBankGroup,
   type QuestionBankQuestionDto,
   type QuestionBankSetDto,
@@ -48,13 +57,16 @@ import { toast } from 'sonner';
 
 const PAGE_SIZE = 12;
 
-/** A group's identity colour, used everywhere that group appears so it is never ambiguous. */
-const GROUP_TONE: Record<QuestionBankGroup, 'brand' | 'info'> = { GROUP_1: 'brand', GROUP_2: 'info' };
-const GROUP_ACCENT: Record<QuestionBankGroup, string> = {
-  GROUP_1: 'border-l-[var(--color-brand)]',
-  GROUP_2: 'border-l-[var(--color-info)]',
+/** A cohort's identity colour, used everywhere that cohort appears so it is never ambiguous. */
+const TAB_TONE: Record<CohortTab, 'brand' | 'info' | 'success' | 'neutral'> = {
+  C1: 'brand', C2: 'success', C3: 'info', OTHER: 'neutral',
 };
-const GROUP_SHORT: Record<QuestionBankGroup, string> = { GROUP_1: 'Group 1', GROUP_2: 'Group 2' };
+const TAB_ACCENT: Record<CohortTab, string> = {
+  C1: 'border-l-[var(--color-brand)]',
+  C2: 'border-l-[var(--color-success)]',
+  C3: 'border-l-[var(--color-info)]',
+  OTHER: 'border-l-[var(--color-border-strong)]',
+};
 
 interface Filters {
   belt: string;
@@ -87,10 +99,9 @@ export default function QuestionBankPage() {
 function QuestionBank() {
   const router = useRouter();
   const params = useSearchParams();
-  const requested = params.get('group');
-  const group: QuestionBankGroup = (QUESTION_BANK_GROUPS as readonly string[]).includes(requested ?? '')
-    ? (requested as QuestionBankGroup)
-    : 'GROUP_1';
+  const tab: CohortTab = cohortTabFromParam(params.get('cohort') ?? params.get('group'));
+  const { group, belt: tabBelt } = cohortTabQuery(tab);
+  const tabInfo = COHORT_TAB_INFO[tab];
 
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [page, setPage] = useState(1);
@@ -100,15 +111,20 @@ function QuestionBank() {
   const me = useQuery({ queryKey: ['me'], queryFn: api.me });
   const canEdit = me.data?.role === 'ADMIN';
 
-  // Switching group clears everything: filters from one group mean nothing in the other.
+  // Switching tab clears everything: filters from one cohort mean nothing in another. C1 and C2
+  // are fixed to their belt, so the belt is part of the tab rather than a filter to set.
   useEffect(() => {
-    setFilters(NO_FILTERS);
+    setFilters({ ...NO_FILTERS, belt: tabBelt });
     setPage(1);
-  }, [group]);
+  }, [tab, tabBelt]);
 
-  const setGroup = (next: QuestionBankGroup) => {
-    if (next !== group) router.replace(`/question-bank?group=${next}`);
+  const setTab = (next: CohortTab) => {
+    if (next !== tab) router.replace(`/question-bank?cohort=${next}`);
   };
+  // "Other belts" always sits on one specific belt (never "all", which would include C1 and C2's).
+  const otherBelts = (options0Belts: { belt: number }[] | undefined) =>
+    (options0Belts ?? []).map((b) => b.belt).filter((b) => b !== 5 && b !== 6);
+  const resetFilters = () => update({ ...NO_FILTERS, belt: tab === 'OTHER' ? (filters.belt || tabBelt) : tabBelt });
   const update = (patch: Partial<Filters>) => {
     setFilters((current) => ({ ...current, ...patch }));
     setPage(1);
@@ -120,85 +136,96 @@ function QuestionBank() {
     staleTime: 5 * 60_000,
   });
 
+  useEffect(() => {
+    if (tab !== 'OTHER' || filters.belt) return;
+    const first = otherBelts(options.data?.belts)[0];
+    if (first !== undefined) setFilters((current) => ({ ...current, belt: String(first) }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, filters.belt, options.data]);
+
   const query = useMemo(
-    () => ({ group, ...filters, page, pageSize: PAGE_SIZE }),
-    [group, filters, page],
+    () => ({ group, ...filters, belt: filters.belt || tabBelt, page, pageSize: PAGE_SIZE }),
+    [group, filters, tabBelt, page],
   );
   const sets = useQuery({
     queryKey: ['question-bank-sets', query],
     queryFn: () => api.questionBankSets(query),
+    // "Other belts" waits for its belt so it never briefly lists C1 and C2's questions.
+    enabled: tab !== 'OTHER' || Boolean(query.belt),
     placeholderData: (previous) => previous,
   });
 
-  const activeFilterCount = Object.values(filters).filter(Boolean).length;
+  // The tab's own belt is not a filter the user chose, so it does not count as one.
+  const activeFilterCount = Object.entries(filters).filter(([key, value]) =>
+    Boolean(value) && key !== 'belt',
+  ).length;
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-lg font-semibold tracking-tight">Coding Hours Question Bank</h1>
         <p className="mt-1 max-w-3xl text-xs text-[var(--color-fg-muted)]">
-          The curated questions for each curriculum day. Pick the right group, find the day, and use its
-          four questions in an assignment — no searching the internet.
+          Ready-made questions for every day of the programme. Choose your cohort, find the day, and
+          use its four questions in an assignment.
         </p>
       </div>
 
-      <div role="tablist" aria-label="Question bank group" className="grid gap-3 md:grid-cols-2">
-        {QUESTION_BANK_GROUPS.map((g) => {
-          const active = g === group;
+      <div role="tablist" aria-label="Cohort" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {COHORT_TABS.map((t) => {
+          const active = t === tab;
+          const info = COHORT_TAB_INFO[t];
           return (
             <button
-              key={g}
+              key={t}
               role="tab"
               aria-selected={active}
-              onClick={() => setGroup(g)}
+              onClick={() => setTab(t)}
               className={cn(
                 'rounded-xl border border-l-4 p-4 text-left transition-colors',
-                GROUP_ACCENT[g],
+                TAB_ACCENT[t],
                 active
                   ? 'border-[var(--color-border-strong)] bg-[var(--color-surface-raised)] shadow-sm'
                   : 'border-[var(--color-border)] bg-[var(--color-surface)] opacity-75 hover:opacity-100',
               )}
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-semibold">{QUESTION_BANK_GROUP_LABELS[g]}</span>
-                {active ? <Badge tone={GROUP_TONE[g]}>Viewing</Badge> : null}
+                <span className="text-sm font-semibold">{info.title}</span>
+                {active ? <Badge tone={TAB_TONE[t]}>Viewing</Badge> : null}
               </div>
-              <p className="mt-1 text-xs text-[var(--color-fg-muted)]">{QUESTION_BANK_GROUP_DESCRIPTIONS[g]}</p>
+              <p className="mt-1 text-xs text-[var(--color-fg-muted)]">{info.subtitle}</p>
             </button>
           );
         })}
       </div>
 
-      {group === 'GROUP_1' ? (
-        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-sunken)] px-4 py-3 text-xs text-[var(--color-fg-muted)]">
-          Group 1 has <strong>{GROUP_1_PRACTICE_DAYS_PER_WEEK} practice days per week</strong>, four questions
-          a day. No questions are shared on the weekly concept-session day.
-        </div>
-      ) : null}
+      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-sunken)] px-4 py-3 text-xs text-[var(--color-fg-muted)]">
+        <strong>{tabInfo.title}{tab === 'OTHER' ? '' : ` · ${tabInfo.subtitle}`}.</strong> {tabInfo.description}{' '}
+        No questions are shared on the weekly session day.
+      </div>
 
       <Card>
         <CardHeader
           title={
             <span className="flex items-center gap-2">
-              <Badge tone={GROUP_TONE[group]}>{GROUP_SHORT[group]}</Badge>
+              <Badge tone={TAB_TONE[tab]}>{tabInfo.title}</Badge>
               <span>Filters</span>
             </span>
           }
           description={
             options.data
-              ? `${options.data.totals.sets} days · ${options.data.totals.questions} questions in ${GROUP_SHORT[group]}`
+              ? `${options.data.totals.sets} days · ${options.data.totals.questions} questions in ${tabInfo.title}`
               : 'Loading…'
           }
           action={
             activeFilterCount > 0 ? (
-              <Button variant="ghost" onClick={() => update({ ...NO_FILTERS })}>
+              <Button variant="ghost" onClick={resetFilters}>
                 <X className="h-3.5 w-3.5" /> Reset filters
               </Button>
             ) : null
           }
         />
         <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-4">
-          <FilterBar group={group} filters={filters} update={update} options={options.data} />
+          <FilterBar tab={tab} group={group} filters={filters} update={update} options={options.data} />
         </div>
       </Card>
 
@@ -213,11 +240,11 @@ function QuestionBank() {
         <Card>
           <EmptyState
             icon={<BookOpen className="h-6 w-6" />}
-            title={`No ${GROUP_SHORT[group]} days match these filters`}
+            title={`No ${tabInfo.title} days match these filters`}
             description="Try removing a filter, or reset them all."
             action={
               activeFilterCount > 0 ? (
-                <Button variant="secondary" onClick={() => update({ ...NO_FILTERS })}>
+                <Button variant="secondary" onClick={resetFilters}>
                   Reset filters
                 </Button>
               ) : undefined
@@ -237,7 +264,7 @@ function QuestionBank() {
           ))}
           <div className="flex items-center justify-between text-xs text-[var(--color-fg-muted)]">
             <span>
-              {GROUP_SHORT[group]} · {sets.data.total} {sets.data.total === 1 ? 'day' : 'days'} · page {sets.data.page}{' '}
+              {tabInfo.title} · {sets.data.total} {sets.data.total === 1 ? 'day' : 'days'} · page {sets.data.page}{' '}
               of {Math.max(sets.data.totalPages, 1)}
             </span>
             <div className="flex gap-2">
@@ -262,15 +289,15 @@ function QuestionBank() {
 }
 
 function Select({
-  id, label, value, onChange, children,
+  id, label, value, onChange, children, noAll = false,
 }: {
-  id: string; label: string; value: string; onChange: (v: string) => void; children: React.ReactNode;
+  id: string; label: string; value: string; onChange: (v: string) => void; children: React.ReactNode; noAll?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-1">
       <label htmlFor={id} className={labelClass}>{label}</label>
       <select id={id} className={selectClass} value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">All</option>
+        {noAll ? null : <option value="">All</option>}
         {children}
       </select>
     </div>
@@ -278,8 +305,9 @@ function Select({
 }
 
 function FilterBar({
-  group, filters, update, options,
+  tab, group, filters, update, options,
 }: {
+  tab: CohortTab;
   group: QuestionBankGroup;
   filters: Filters;
   update: (patch: Partial<Filters>) => void;
@@ -296,9 +324,15 @@ function FilterBar({
     <>
       {group === 'GROUP_1' ? (
         <>
-          <Select id="qb-belt" label="Belt" value={filters.belt} onChange={(v) => update({ belt: v, week: '' })}>
-            {(options?.belts ?? []).map((b) => <option key={b.belt} value={b.belt}>Belt {b.belt}</option>)}
-          </Select>
+          {/* C1 and C2 are fixed to their belt, so the belt picker only appears for "Other belts",
+              where it lists just the belts no cohort is running. */}
+          {tab === 'OTHER' ? (
+            <Select id="qb-belt" label="Belt" noAll value={filters.belt} onChange={(v) => update({ belt: v, week: '' })}>
+              {(options?.belts ?? []).filter((b) => b.belt !== 5 && b.belt !== 6).map((b) => (
+                <option key={b.belt} value={b.belt}>Belt {b.belt}</option>
+              ))}
+            </Select>
+          ) : null}
           <Select id="qb-week" label="Week" value={filters.week} onChange={(v) => update({ week: v })}>
             {opt(g1Weeks)}
           </Select>
@@ -355,12 +389,6 @@ function FilterBar({
   );
 }
 
-function setHeading(set: QuestionBankSetDto): string {
-  return set.group === 'GROUP_1'
-    ? `Belt ${set.belt} · Week ${set.week} · Day ${set.day}`
-    : `Week ${set.week} · ${set.weekday} · Day ${set.day}`;
-}
-
 interface EditState {
   question: QuestionBankQuestionDto;
   setKey: string;
@@ -375,6 +403,7 @@ function SetCard({ set, onEdit, onRefresh, canEdit }: {
 }) {
   const queryClient = useQueryClient();
   const group = set.group;
+  const cohortTab = cohortTabOfSet(set);
   const subtitle = group === 'GROUP_1' ? set.dayFocus : set.dailyTheme;
   const anyMatched = set.questions.some((q) => q.matched);
 
@@ -421,12 +450,12 @@ function SetCard({ set, onEdit, onRefresh, canEdit }: {
   const nextAvailable = Array.from({ length: 10 }, (_, i) => i + 1).find((p) => !usedPositions.has(p)) ?? set.questions.length + 1;
 
   return (
-    <Card className={cn('border-l-4', GROUP_ACCENT[group])}>
+    <Card className={cn('border-l-4', TAB_ACCENT[cohortTab])}>
       <CardHeader
         title={
           <span className="flex flex-wrap items-center gap-2">
-            <Badge tone={GROUP_TONE[group]}>{GROUP_SHORT[group]}</Badge>
-            <span>{setHeading(set)}</span>
+            <Badge tone={TAB_TONE[cohortTab]}>{COHORT_TAB_INFO[cohortTab].title}</Badge>
+            <span>{cohortSetTitle(set)}</span>
           </span>
         }
         description={subtitle}

@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight, Plus, Settings2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { QUESTION_BANK_GROUP_LABELS, type AssignmentSummary, type QuestionBankGroup, type QuestionBankSetDto } from '@dsa/shared';
+import { cohortAssignmentTopic, cohortSetTitle, cohortTabOfSet, COHORT_TAB_INFO, parseAssignmentTopic, type AssignmentSummary, type QuestionBankGroup, type QuestionBankSetDto } from '@dsa/shared';
 
 import { api } from '@/lib/api';
 import { todayKey } from '@/lib/utils';
@@ -43,13 +43,6 @@ export default function AssignmentsPage() {
   );
 }
 
-/** "Belt 4 · Week 2 · Day 3" / "Week 5 · Mon · Day 22", for the topic and the banner. */
-function bankSetLabel(set: QuestionBankSetDto): string {
-  return set.group === 'GROUP_1'
-    ? `Belt ${set.belt} · Week ${set.week} · Day ${set.day}`
-    : `Week ${set.week} · ${set.weekday} · Day ${set.day}`;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Assignment Grouping for History View
 // ─────────────────────────────────────────────────────────────────────────────
@@ -65,8 +58,8 @@ interface AssignmentGroup {
   dayKey: string;
   /** The common topic/curriculum context */
   topic: string | null;
-  /** Programme group extracted from topic: 'G1', 'G2', or null if undetermined */
-  programmeGroup: 'G1' | 'G2' | null;
+  /** Cohort (C1/C2/C3) of the problem set, or null if it is not tied to one */
+  cohort: 'C1' | 'C2' | 'C3' | null;
   /** Curriculum metadata extracted from topic */
   curriculumLabel: string | null;
   /** The common problems (same for all targets) */
@@ -78,29 +71,18 @@ interface AssignmentGroup {
 }
 
 /**
- * Extracts programme group and curriculum label from the topic string.
- * Group 1 topics: "Group 1 · Belt X · Week Y · Day Z"
- * Group 2 topics: "Group 2 · Week X · Weekday · Day Y"
+ * Cohort and readable label for a group of assignments. The cohort comes from the assignments'
+ * own cohort field (set from the batch they were sent to), which is exact for every row; the
+ * topic text is only the fallback, and understands both the older "Group 1 · Belt 5 · ..." wording
+ * and the newer "C1 · Week 2 · Day 3".
  */
-function parseTopicMetadata(topic: string | null): {
-  programmeGroup: 'G1' | 'G2' | null;
-  curriculumLabel: string | null;
-} {
-  if (!topic) return { programmeGroup: null, curriculumLabel: null };
-  
-  // Check for Group 1 pattern: "Group 1 · Belt X · Week Y · Day Z"
-  const g1Match = topic.match(/^Group\s*1\s*[·•]\s*(.+)$/i);
-  if (g1Match) {
-    return { programmeGroup: 'G1', curriculumLabel: g1Match[1]!.trim() };
-  }
-  
-  // Check for Group 2 pattern: "Group 2 · Week X · Weekday · Day Y"
-  const g2Match = topic.match(/^Group\s*2\s*[·•]\s*(.+)$/i);
-  if (g2Match) {
-    return { programmeGroup: 'G2', curriculumLabel: g2Match[1]!.trim() };
-  }
-  
-  return { programmeGroup: null, curriculumLabel: null };
+function describeGroup(
+  topic: string | null,
+  cohortField: number | null,
+): { cohort: 'C1' | 'C2' | 'C3' | null; curriculumLabel: string | null } {
+  const parsed = parseAssignmentTopic(topic);
+  const fromField = cohortField === 1 || cohortField === 2 || cohortField === 3 ? (`C${cohortField}` as const) : null;
+  return { cohort: fromField ?? parsed.cohort, curriculumLabel: parsed.label };
 }
 
 /**
@@ -129,12 +111,12 @@ function groupAssignments(assignments: AssignmentSummary[]): AssignmentGroup[] {
       existing.targets.push(assignment);
       existing.totalStudents += assignment.studentCount;
     } else {
-      const { programmeGroup, curriculumLabel } = parseTopicMetadata(assignment.topic);
+      const { cohort, curriculumLabel } = describeGroup(assignment.topic, assignment.cohort);
       groups.set(groupKey, {
         groupKey,
         dayKey: assignment.dayKey,
         topic: assignment.topic,
-        programmeGroup,
+        cohort,
         curriculumLabel,
         problems: assignment.problems,
         targets: [assignment],
@@ -211,9 +193,9 @@ function GroupedAssignmentRow({
         
         {/* Programme Group Badge */}
         <Td>
-          {group.programmeGroup ? (
-            <Badge tone={group.programmeGroup === 'G1' ? 'brand' : 'info'}>
-              {group.programmeGroup}
+          {group.cohort ? (
+            <Badge tone={group.cohort === 'C1' ? 'brand' : group.cohort === 'C2' ? 'success' : 'info'}>
+              {group.cohort}
             </Badge>
           ) : (
             <span className="text-[var(--color-fg-muted)]">—</span>
@@ -429,7 +411,7 @@ function AssignmentHistoryCard({
           <thead>
             <tr>
               <Th style={{ width: '120px' }}>Date</Th>
-              <Th style={{ width: '60px' }}>Group</Th>
+              <Th style={{ width: '60px' }}>Cohort</Th>
               <Th>Curriculum</Th>
               <Th>Problems</Th>
               <Th style={{ width: '120px' }}>Targets</Th>
@@ -483,8 +465,9 @@ function AssignmentsPageInner() {
     bankApplied.current = true;
     const set = bankSet.data;
     setUrls(set.questions.map((question) => question.url));
-    setTopic(`${QUESTION_BANK_GROUP_LABELS[set.group].split(' — ')[0]} · ${bankSetLabel(set)}`);
-    setBankLabel(`${QUESTION_BANK_GROUP_LABELS[set.group]} · ${bankSetLabel(set)}`);
+    setTopic(cohortAssignmentTopic(set));
+    const tab = cohortTabOfSet(set);
+    setBankLabel(`${COHORT_TAB_INFO[tab].title} (${COHORT_TAB_INFO[tab].subtitle}) · ${cohortSetTitle(set)}`);
     setBankGroup(set.group);
     // Which batch this set belongs to: Belt 5 → C1, Belt 6 → C2, placement (Group 2) → C3.
     setBankExpectedBatch(
