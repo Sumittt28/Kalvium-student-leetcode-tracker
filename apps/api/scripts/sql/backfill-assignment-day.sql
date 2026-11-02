@@ -8,7 +8,10 @@
 --     -v set_c1=G1-B5-W1-D1 -v topic_c1='Group 1 · Belt 5 · Week 1 · Day 1' \
 --     -v set_c2=G1-B6-W1-D1 -v topic_c2='Group 2 · Belt 6 · Week 1 · Day 1' \
 --     -v set_c3=G2-D1       -v topic_c3='Group 3 · G2 · Week 1 · Day 1' \
---     [-v finish=ROLLBACK] -f apps/api/scripts/sql/backfill-assignment-day.sql
+--     [-v cohorts=3] [-v finish=ROLLBACK] -f apps/api/scripts/sql/backfill-assignment-day.sql
+--
+-- `cohorts` (default 1,2,3) limits the run to some cohorts - for a day that was only partly
+-- assigned (e.g. -v cohorts=3 to add just C3). Other cohorts' assignments and rows are not touched.
 --
 -- Same-day solves are credited (the submission window is the assignment's calendar day, IST).
 -- Take a backup first. Dry-run with -v finish=ROLLBACK.
@@ -19,11 +22,18 @@
   \set finish COMMIT
 \endif
 
+\if :{?cohorts}
+\else
+  \set cohorts 1,2,3
+\endif
+
 BEGIN;
 SELECT set_config('app.campuses', :'campus_codes', true), set_config('app.day', :'day_key', true);
 
 CREATE TEMP TABLE sets (cohort int, set_key text, topic text);
 INSERT INTO sets VALUES (1, :'set_c1', :'topic_c1'), (2, :'set_c2', :'topic_c2'), (3, :'set_c3', :'topic_c3');
+-- Keep only the cohorts being added.
+DELETE FROM sets WHERE cohort <> ALL (string_to_array(:'cohorts', ',')::int[]);
 
 DO $$
 DECLARE missing text; late int;
@@ -32,10 +42,11 @@ BEGIN
     WHERE NOT EXISTS (SELECT 1 FROM question_bank_entries q WHERE q."setKey" = sets.set_key);
   IF missing IS NOT NULL THEN RAISE EXCEPTION 'Question Bank set(s) not found: %', missing; END IF;
 
-  IF EXISTS (SELECT 1 FROM assignments a JOIN campuses c ON c.id = a."campusId"
+  IF EXISTS (SELECT 1 FROM assignments a JOIN campuses c ON c.id = a."campusId" JOIN batches b ON b.id = a."batchId"
+             JOIN sets v ON 'C' || v.cohort = b.code
              WHERE c.code = ANY (string_to_array(current_setting('app.campuses'), ','))
                AND a."dayKey" = current_setting('app.day')) THEN
-    RAISE EXCEPTION 'these campuses already have assignments on %', current_setting('app.day');
+    RAISE EXCEPTION 'one of these cohorts already has an assignment at these campuses on %', current_setting('app.day');
   END IF;
 
   -- The rollup skips any day before a student's enrolment. Catch it here instead of silently
@@ -68,13 +79,15 @@ SELECT gen_random_uuid(), s.id, :'day_key', a.id, s."campusId", s."batchId",
 FROM students s JOIN campuses c ON c.id = s."campusId"
 JOIN assignments a ON a."campusId" = s."campusId" AND a."batchId" = s."batchId" AND a.cohort = s.cohort AND a."dayKey" = :'day_key'
 WHERE c.code = ANY (string_to_array(:'campus_codes', ',')) AND s.status = 'ACTIVE'
+  AND s.cohort = ANY (string_to_array(:'cohorts', ',')::int[])
 ON CONFLICT ("studentId", "dayKey") DO UPDATE SET
   "assignmentId" = EXCLUDED."assignmentId", "campusId" = EXCLUDED."campusId", "batchId" = EXCLUDED."batchId",
   "assignedCount" = EXCLUDED."assignedCount", "updatedAt" = now();
 
 DELETE FROM daily_problem_statuses dps USING daily_statuses ds, students s, campuses c
 WHERE dps."dailyStatusId" = ds.id AND ds."studentId" = s.id AND s."campusId" = c.id
-  AND c.code = ANY (string_to_array(:'campus_codes', ',')) AND ds."dayKey" = :'day_key';
+  AND c.code = ANY (string_to_array(:'campus_codes', ',')) AND ds."dayKey" = :'day_key'
+  AND s.cohort = ANY (string_to_array(:'cohorts', ',')::int[]);
 
 INSERT INTO daily_problem_statuses (id, "dailyStatusId", "problemId", position, status, "inWindowStatus", "solvedAt", "solvedInWindowAt", attempts, "attemptsInWindow")
 SELECT gen_random_uuid(), ds.id, ap."problemId", ap.position,
@@ -90,13 +103,15 @@ LEFT JOIN LATERAL (
   FROM submissions sub
   WHERE sub."studentId" = ds."studentId" AND lower(sub."titleSlug") = lower(p."titleSlug") AND sub."dayKey" = ds."dayKey"
 ) agg ON true
-WHERE c.code = ANY (string_to_array(:'campus_codes', ',')) AND ds."dayKey" = :'day_key' AND ds."assignmentId" IS NOT NULL;
+WHERE c.code = ANY (string_to_array(:'campus_codes', ',')) AND ds."dayKey" = :'day_key' AND ds."assignmentId" IS NOT NULL
+  AND s.cohort = ANY (string_to_array(:'cohorts', ',')::int[]);
 
 UPDATE daily_statuses ds SET "solvedCount" = x.n, "inWindowSolvedCount" = LEAST(x.n, ds."assignedCount"), "updatedAt" = now()
 FROM (SELECT d2.id, count(*) FILTER (WHERE dps.status = 'ACCEPTED') AS n
       FROM daily_statuses d2 JOIN daily_problem_statuses dps ON dps."dailyStatusId" = d2.id
       JOIN students s ON s.id = d2."studentId" JOIN campuses c ON c.id = s."campusId"
-      WHERE c.code = ANY (string_to_array(:'campus_codes', ',')) AND d2."dayKey" = :'day_key' GROUP BY d2.id) x
+      WHERE c.code = ANY (string_to_array(:'campus_codes', ',')) AND d2."dayKey" = :'day_key'
+        AND s.cohort = ANY (string_to_array(:'cohorts', ',')::int[]) GROUP BY d2.id) x
 WHERE ds.id = x.id;
 
 DO $$
