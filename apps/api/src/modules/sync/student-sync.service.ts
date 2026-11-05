@@ -257,6 +257,27 @@ export class StudentSyncService {
       skipDuplicates: true,
     });
 
+    // A submission fetched before LeetCode had a verdict for it is stored UNKNOWN, and
+    // `skipDuplicates` would then leave it that way forever - a genuinely accepted solve
+    // scored as nothing. When a later fetch carries a real verdict, upgrade the stored row.
+    // Only UNKNOWN rows are touched, so a settled verdict is never rewritten.
+    const settled = rows.filter((row) => row.status !== 'UNKNOWN');
+    if (settled.length > 0) {
+      for (const status of ['ACCEPTED', 'ATTEMPTED_NOT_ACCEPTED'] as const) {
+        const ids = settled.filter((row) => row.status === status).map((row) => row.providerSubmissionId);
+        if (ids.length === 0) continue;
+        await this.prisma.submission.updateMany({
+          where: {
+            studentId,
+            provider: this.provider.name,
+            providerSubmissionId: { in: ids },
+            status: 'UNKNOWN',
+          },
+          data: { status },
+        });
+      }
+    }
+
     // The days reported are those of every row *offered*, not only the ones that were
     // new. `createMany` with `skipDuplicates` cannot say which rows it skipped, and
     // over-reporting here is cheap and safe: recomputing a day that did not change is

@@ -30,6 +30,7 @@ function makeHarness(options: {
   profileFetchedAt?: Date | null;
   submissionsThrow?: unknown;
   profileThrows?: boolean;
+  submissions?: { id: string; titleSlug: string; title: string; status: string; submittedAt: Date; language: string | null; runtime: null; memory: null }[];
 } = {}) {
   const state = {
     syncStateUpdates: [] as Record<string, unknown>[],
@@ -53,7 +54,10 @@ function makeHarness(options: {
       }),
     },
     problem: { findMany: vi.fn(async () => []) },
-    submission: { createMany: vi.fn(async () => ({ count: 0 })) },
+    submission: {
+      createMany: vi.fn(async () => ({ count: 0 })),
+      updateMany: vi.fn(async () => ({ count: 0 })),
+    },
     studentSyncState: {
       upsert: vi.fn(async ({ update }: { update: Record<string, unknown> }) => {
         state.syncStateUpdates.push(update);
@@ -73,7 +77,7 @@ function makeHarness(options: {
     name: 'leetcode',
     fetchRecentSubmissions: vi.fn(async () => {
       if (options.submissionsThrow) throw options.submissionsThrow;
-      return { submissions: [], truncated: false, windowSize: 20 };
+      return { submissions: options.submissions ?? [], truncated: false, windowSize: 20 };
     }),
     fetchUserProfile,
   };
@@ -155,5 +159,36 @@ describe('syncStudent — provider profile refresh', () => {
     const result = await h.service.syncStudent('student-1');
     expect(result.status).toBe('OK');
     expect(result.error).toBeNull();
+  });
+});
+
+describe('syncStudent — a submission first stored without a verdict', () => {
+  const row = (id: string, status: string) => ({
+    id, titleSlug: 'two-sum', title: 'Two Sum', status,
+    submittedAt: new Date('2026-08-11T08:00:00Z'), language: null, runtime: null as null, memory: null as null,
+  });
+
+  it('upgrades a stored UNKNOWN row once LeetCode reports the verdict', async () => {
+    const h = makeHarness({ submissions: [row('s1', 'ACCEPTED'), row('s2', 'ATTEMPTED_NOT_ACCEPTED')] });
+    await h.service.syncStudent('student-1');
+
+    const calls = (h.prisma.submission.updateMany.mock.calls as unknown as [{ where: Record<string, unknown>; data: { status: string } }][]).map((c) => c[0]);
+    const accepted = calls.find((c) => c.data.status === 'ACCEPTED');
+    expect(accepted?.where).toMatchObject({ studentId: 'student-1', status: 'UNKNOWN', providerSubmissionId: { in: ['s1'] } });
+    expect(calls.find((c) => c.data.status === 'ATTEMPTED_NOT_ACCEPTED')?.where).toMatchObject({ providerSubmissionId: { in: ['s2'] } });
+  });
+
+  it('only ever touches rows that are still UNKNOWN, so a settled verdict is never rewritten', async () => {
+    const h = makeHarness({ submissions: [row('s1', 'ACCEPTED')] });
+    await h.service.syncStudent('student-1');
+    const calls = (h.prisma.submission.updateMany.mock.calls as unknown as [{ where: { status: string } }][]).map((c) => c[0]);
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls.every((c) => c.where.status === 'UNKNOWN')).toBe(true);
+  });
+
+  it('does nothing when the fetched row has no verdict either', async () => {
+    const h = makeHarness({ submissions: [row('s1', 'UNKNOWN')] });
+    await h.service.syncStudent('student-1');
+    expect(h.prisma.submission.updateMany).not.toHaveBeenCalled();
   });
 });

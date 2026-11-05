@@ -95,7 +95,7 @@ describe('syncStudent — a student with no linked handle', () => {
         update: vi.fn(async () => ({})),
       },
       problem: { findMany: vi.fn(async () => []) },
-      submission: { createMany: vi.fn(async () => ({ count: 0 })) },
+      submission: { createMany: vi.fn(async () => ({ count: 0 })), updateMany: vi.fn(async () => ({ count: 0 })) },
       studentSyncState: {
         upsert: vi.fn(async ({ update }: { update: Record<string, unknown> }) => {
           syncStateUpdates.push(update);
