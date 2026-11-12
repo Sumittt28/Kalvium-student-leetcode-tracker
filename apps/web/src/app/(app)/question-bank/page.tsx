@@ -304,6 +304,18 @@ function Select({
   );
 }
 
+/** Extension weeks are stored as later week numbers; label them by the week they extend. */
+const EXTENSION_WEEKS: Record<number, string> = {
+  7: 'Week 2 Extended', 8: 'Week 3 Extended', // Belt 5 / Belt 6 (C1, C2)
+  17: 'Week 2 Extended', 18: 'Week 3 Extended', // Group 2 (C3)
+};
+const weekOptions = (weeks: number[] | undefined, tab: CohortTab) =>
+  (weeks ?? []).map((w) => (
+    <option key={w} value={w}>
+      {tab !== 'OTHER' && EXTENSION_WEEKS[w] ? `${w} · ${EXTENSION_WEEKS[w]}` : w}
+    </option>
+  ));
+
 function FilterBar({
   tab, group, filters, update, options,
 }: {
@@ -334,7 +346,7 @@ function FilterBar({
             </Select>
           ) : null}
           <Select id="qb-week" label="Week" value={filters.week} onChange={(v) => update({ week: v })}>
-            {opt(g1Weeks)}
+            {weekOptions(g1Weeks, tab)}
           </Select>
           <Select id="qb-day" label="Curriculum day" value={filters.day} onChange={(v) => update({ day: v })}>
             {opt(Array.from({ length: GROUP_1_PRACTICE_DAYS_PER_WEEK }, (_, i) => i + 1))}
@@ -349,7 +361,7 @@ function FilterBar({
       ) : (
         <>
           <Select id="qb-week" label="Week" value={filters.week} onChange={(v) => update({ week: v })}>
-            {opt(options?.weeks)}
+            {weekOptions(options?.weeks, tab)}
           </Select>
           <Select id="qb-weekday" label="Weekday" value={filters.weekday} onChange={(v) => update({ weekday: v })}>
             {opt(options?.weekdays)}

@@ -48,6 +48,24 @@ interface SetLike {
   week: number | null;
   day: number | null;
   weekday?: string | null;
+  /** Used to recognise extension weeks ("Week 3 Extended - ..."); see `extensionOf`. */
+  dayFocus?: string | null;
+  dailyTheme?: string | null;
+  setKey?: string;
+}
+
+/**
+ * Extension days are practice added after a cohort's last curriculum week for a cohort that
+ * missed teaching (no class that week). They are stored as ordinary sets in a later week number
+ * (Belt 5/6 weeks 7-8, Group 2 weeks 17-18) and tagged by their focus text, "Week N Extended - ...",
+ * where N is the week being extended. Shown as "Week 3 Extended · Day 1" rather than "Week 8".
+ */
+export function extensionOf(set: Pick<SetLike, 'dayFocus' | 'dailyTheme' | 'setKey' | 'day'>): { week: number; day: number } | null {
+  const focus = set.dayFocus ?? set.dailyTheme ?? '';
+  const m = focus.match(/^Week\s+(\d+)\s+Extended\b(?!\s+Concepts)/i);
+  if (!m) return null;
+  const k = (set.setKey ?? '').match(/-D(\d+)$/);
+  return { week: Number(m[1]), day: k ? Number(k[1]) : (set.day ?? 1) };
 }
 
 /** Which tab a Question Bank day belongs to. */
@@ -76,6 +94,8 @@ export function cohortTabFromParam(param: string | null | undefined): CohortTab 
 
 /** "Week 2 · Day 3" for C1/C2, "Week 2 · Wed · Day 8" for C3, "Belt 4 · Week 1 · Day 2" otherwise. */
 export function cohortSetTitle(set: SetLike): string {
+  const ext = extensionOf(set);
+  if (ext) return `Week ${ext.week} Extended · Day ${ext.day}`;
   const tab = cohortTabOfSet(set);
   if (tab === 'C3') return `Week ${set.week} · ${set.weekday} · Day ${set.day}`;
   if (tab === 'OTHER') return `Belt ${set.belt} · Week ${set.week} · Day ${set.day}`;
