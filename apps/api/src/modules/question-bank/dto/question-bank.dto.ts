@@ -17,11 +17,13 @@ export class QuestionBankSetsQueryDto extends QuestionBankFiltersQueryDto {
   belt?: number;
 
   @ApiPropertyOptional()
-  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(16)
+  // 16 curriculum weeks plus extension weeks (Group 2 weeks 17-18; Belt 5/6 weeks 7-8) added after them.
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(40)
   week?: number;
 
   @ApiPropertyOptional({ description: 'Group 1: curriculum day 1-6. Group 2: running Day # 1-80.' })
-  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(80)
+  // Group 2 running day 1-80, plus extension days after it (81-93 so far).
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(200)
   day?: number;
 
   @ApiPropertyOptional({ description: 'Group 2 only: Mon-Fri' })
