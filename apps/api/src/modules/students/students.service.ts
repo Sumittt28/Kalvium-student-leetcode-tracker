@@ -303,6 +303,9 @@ export class StudentsService {
                     lastProviderSubmissionId: null,
                     lastError: null,
                     consecutiveFailures: 0,
+                    // Profile totals (solved counts, ranking) belong to the old account too.
+                    // Without this they are kept for up to the 12-hour refresh interval.
+                    providerProfileFetchedAt: null,
                   },
                 },
               },
