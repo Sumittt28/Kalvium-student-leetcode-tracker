@@ -60,6 +60,19 @@ interface SetLike {
  * (Belt 5/6 weeks 7-8, Group 2 weeks 17-18) and tagged by their focus text, "Week N Extended - ...",
  * where N is the week being extended. Shown as "Week 3 Extended · Day 1" rather than "Week 8".
  */
+/**
+ * SRM's own plan (SRM students are a fresh cohort and follow Belt 5 at their own pace). Its days are
+ * stored as ordinary sets in weeks 11+ (week 11 = "SRM Week 1") and tagged "SRM Week N - <focus>", so
+ * they never collide with the Belt 5 curriculum weeks 1-4. Shown as "SRM Week 1 · Day 2".
+ */
+export function srmPlanOf(set: Pick<SetLike, 'dayFocus' | 'dailyTheme' | 'setKey' | 'day'>): { week: number; day: number } | null {
+  const focus = set.dayFocus ?? set.dailyTheme ?? '';
+  const m = focus.match(/^SRM Week\s+(\d+)\b/i);
+  if (!m) return null;
+  const k = (set.setKey ?? '').match(/-D(\d+)$/);
+  return { week: Number(m[1]), day: k ? Number(k[1]) : (set.day ?? 1) };
+}
+
 export function extensionOf(set: Pick<SetLike, 'dayFocus' | 'dailyTheme' | 'setKey' | 'day'>): { week: number; day: number } | null {
   const focus = set.dayFocus ?? set.dailyTheme ?? '';
   const m = focus.match(/^Week\s+(\d+)\s+Extended\b(?!\s+Concepts)/i);
@@ -94,6 +107,8 @@ export function cohortTabFromParam(param: string | null | undefined): CohortTab 
 
 /** "Week 2 · Day 3" for C1/C2, "Week 2 · Wed · Day 8" for C3, "Belt 4 · Week 1 · Day 2" otherwise. */
 export function cohortSetTitle(set: SetLike): string {
+  const srm = srmPlanOf(set);
+  if (srm) return `SRM Week ${srm.week} · Day ${srm.day}`;
   const ext = extensionOf(set);
   if (ext) return `Week ${ext.week} Extended · Day ${ext.day}`;
   const tab = cohortTabOfSet(set);
@@ -104,6 +119,8 @@ export function cohortSetTitle(set: SetLike): string {
 
 /** The topic stored on a new assignment made from the Question Bank: "C1 · Week 2 · Day 3". */
 export function cohortAssignmentTopic(set: SetLike): string {
+  // SRM's plan is not one of the C1/C2/C3 cohorts, so its topic carries no cohort prefix.
+  if (srmPlanOf(set)) return cohortSetTitle(set);
   const tab = cohortTabOfSet(set);
   return tab === 'OTHER' ? cohortSetTitle(set) : `${tab} · ${cohortSetTitle(set)}`;
 }

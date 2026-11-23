@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  srmPlanOf,
   extensionOf,
   cohortAssignmentTopic,
   cohortSetTitle,
@@ -93,5 +94,30 @@ describe('extension weeks', () => {
 
   it('is exactly parseable back from the stored assignment topic', () => {
     expect(parseAssignmentTopic('C3 · Week 2 Extended · Day 1')).toEqual({ cohort: 'C3', label: 'Week 2 Extended · Day 1' });
+  });
+});
+
+describe('SRM plan days', () => {
+  const srm = (day: number) => ({
+    group: 'GROUP_1' as const, belt: 5, week: 11, day, weekday: null,
+    dayFocus: 'SRM Week 1 \u2014 Reading & traversal', dailyTheme: null, setKey: `G1-SRM5-W1-D${day}`,
+  });
+
+  it('titles SRM days "SRM Week N · Day D" using the day in the set key', () => {
+    expect(cohortSetTitle(srm(1))).toBe('SRM Week 1 · Day 1');
+    expect(cohortSetTitle(srm(5))).toBe('SRM Week 1 · Day 5');
+    expect(srmPlanOf(srm(3))).toEqual({ week: 1, day: 3 });
+  });
+
+  it('builds an assignment topic without a C1/C2/C3 prefix, and still files the set under Belt 5', () => {
+    expect(cohortAssignmentTopic(srm(2))).toBe('SRM Week 1 · Day 2');
+    expect(cohortTabOfSet(srm(2))).toBe('C1');
+    expect(parseAssignmentTopic('SRM Week 1 · Day 2')).toEqual({ cohort: null, label: null });
+  });
+
+  it('leaves extension weeks, curriculum days and older extension sets exactly as they were', () => {
+    expect(srmPlanOf({ dayFocus: 'Week 3 Extended \u2014 Stacks', dailyTheme: null, setKey: 'G1-C1-W8-D1', day: 1 })).toBeNull();
+    expect(cohortSetTitle({ group: 'GROUP_1', belt: 5, week: 8, day: 1, dayFocus: 'Week 3 Extended \u2014 Stacks & queues', setKey: 'G1-C1-W8-D1' })).toBe('Week 3 Extended · Day 1');
+    expect(cohortSetTitle({ group: 'GROUP_1', belt: 5, week: 2, day: 3, dayFocus: 'Adding numbers stored as linked lists', setKey: 'G1-B5-W2-D3' })).toBe('Week 2 · Day 3');
   });
 });

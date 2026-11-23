@@ -304,15 +304,22 @@ function Select({
   );
 }
 
-/** Extension weeks are stored as later week numbers; label them by the week they extend. */
-const EXTENSION_WEEKS: Record<number, string> = {
-  7: 'Week 2 Extended', 8: 'Week 3 Extended', // Belt 5 / Belt 6 (C1, C2)
-  17: 'Week 2 Extended', 18: 'Week 3 Extended', // Group 2 (C3)
+/**
+ * Extension and SRM-plan weeks are stored as later week numbers. The labels depend on the tab,
+ * because the same number can be a normal curriculum week elsewhere (Group 2 has weeks 1-18).
+ */
+const WEEK_LABELS: Partial<Record<CohortTab, Record<number, string>>> = {
+  C1: {
+    7: 'Week 2 Extended', 8: 'Week 3 Extended',
+    11: 'SRM Week 1', 12: 'SRM Week 2', 13: 'SRM Week 3', 14: 'SRM Week 4', 15: 'SRM Week 5', 16: 'SRM Week 6',
+  },
+  C2: { 7: 'Week 2 Extended', 8: 'Week 3 Extended' },
+  C3: { 17: 'Week 2 Extended', 18: 'Week 3 Extended' },
 };
 const weekOptions = (weeks: number[] | undefined, tab: CohortTab) =>
   (weeks ?? []).map((w) => (
     <option key={w} value={w}>
-      {tab !== 'OTHER' && EXTENSION_WEEKS[w] ? `${w} · ${EXTENSION_WEEKS[w]}` : w}
+      {WEEK_LABELS[tab]?.[w] ? `${w} · ${WEEK_LABELS[tab]![w]}` : w}
     </option>
   ));
 
