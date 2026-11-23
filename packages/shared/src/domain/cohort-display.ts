@@ -65,6 +65,19 @@ interface SetLike {
  * stored as ordinary sets in weeks 11+ (week 11 = "SRM Week 1") and tagged "SRM Week N - <focus>", so
  * they never collide with the Belt 5 curriculum weeks 1-4. Shown as "SRM Week 1 · Day 2".
  */
+/**
+ * A revision week added after a track's last teaching week: no session, just questions that sum
+ * up everything taught. Stored as a later week number, tagged "Week N Extended week for Revision - <focus>",
+ * and shown as "Week 5 · Extended week for Revision · Day 2".
+ */
+export function revisionWeekOf(set: Pick<SetLike, 'dayFocus' | 'dailyTheme' | 'setKey' | 'day'>): { week: number; day: number } | null {
+  const focus = set.dayFocus ?? set.dailyTheme ?? '';
+  const m = focus.match(/^Week\s+(\d+)\s+Extended week for Revision\b/i);
+  if (!m) return null;
+  const k = (set.setKey ?? '').match(/-D(\d+)$/);
+  return { week: Number(m[1]), day: k ? Number(k[1]) : (set.day ?? 1) };
+}
+
 export function srmPlanOf(set: Pick<SetLike, 'dayFocus' | 'dailyTheme' | 'setKey' | 'day'>): { week: number; day: number } | null {
   const focus = set.dayFocus ?? set.dailyTheme ?? '';
   const m = focus.match(/^SRM Week\s+(\d+)\b/i);
@@ -75,7 +88,7 @@ export function srmPlanOf(set: Pick<SetLike, 'dayFocus' | 'dailyTheme' | 'setKey
 
 export function extensionOf(set: Pick<SetLike, 'dayFocus' | 'dailyTheme' | 'setKey' | 'day'>): { week: number; day: number } | null {
   const focus = set.dayFocus ?? set.dailyTheme ?? '';
-  const m = focus.match(/^Week\s+(\d+)\s+Extended\b(?!\s+Concepts)/i);
+  const m = focus.match(/^Week\s+(\d+)\s+Extended\b(?!\s+Concepts)(?!\s+week for Revision)/i);
   if (!m) return null;
   const k = (set.setKey ?? '').match(/-D(\d+)$/);
   return { week: Number(m[1]), day: k ? Number(k[1]) : (set.day ?? 1) };
@@ -107,6 +120,8 @@ export function cohortTabFromParam(param: string | null | undefined): CohortTab 
 
 /** "Week 2 · Day 3" for C1/C2, "Week 2 · Wed · Day 8" for C3, "Belt 4 · Week 1 · Day 2" otherwise. */
 export function cohortSetTitle(set: SetLike): string {
+  const rev = revisionWeekOf(set);
+  if (rev) return `Week ${rev.week} · Extended week for Revision · Day ${rev.day}`;
   const srm = srmPlanOf(set);
   if (srm) return `SRM Week ${srm.week} · Day ${srm.day}`;
   const ext = extensionOf(set);

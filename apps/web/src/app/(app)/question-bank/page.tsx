@@ -310,7 +310,7 @@ function Select({
  */
 const WEEK_LABELS: Partial<Record<CohortTab, Record<number, string>>> = {
   C1: {
-    7: 'Week 2 Extended', 8: 'Week 3 Extended',
+    7: 'Week 2 Extended', 8: 'Week 3 Extended', 9: 'Week 5 · Extended week for Revision',
     11: 'SRM Week 1', 12: 'SRM Week 2', 13: 'SRM Week 3', 14: 'SRM Week 4', 15: 'SRM Week 5', 16: 'SRM Week 6',
   },
   C2: { 7: 'Week 2 Extended', 8: 'Week 3 Extended' },

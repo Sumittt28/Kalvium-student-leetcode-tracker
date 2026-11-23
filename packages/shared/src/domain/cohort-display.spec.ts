@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  revisionWeekOf,
   srmPlanOf,
   extensionOf,
   cohortAssignmentTopic,
@@ -119,5 +120,26 @@ describe('SRM plan days', () => {
     expect(srmPlanOf({ dayFocus: 'Week 3 Extended \u2014 Stacks', dailyTheme: null, setKey: 'G1-C1-W8-D1', day: 1 })).toBeNull();
     expect(cohortSetTitle({ group: 'GROUP_1', belt: 5, week: 8, day: 1, dayFocus: 'Week 3 Extended \u2014 Stacks & queues', setKey: 'G1-C1-W8-D1' })).toBe('Week 3 Extended · Day 1');
     expect(cohortSetTitle({ group: 'GROUP_1', belt: 5, week: 2, day: 3, dayFocus: 'Adding numbers stored as linked lists', setKey: 'G1-B5-W2-D3' })).toBe('Week 2 · Day 3');
+  });
+});
+
+describe('revision week', () => {
+  const rev = (day: number) => ({
+    group: 'GROUP_1' as const, belt: 5, week: 9, day, weekday: null,
+    dayFocus: 'Week 5 Extended week for Revision \u2014 Stacks', dailyTheme: null, setKey: `G1-C1-W9-D${day}`,
+  });
+
+  it('titles revision days "Week 5 · Extended week for Revision · Day D" and files them under C1', () => {
+    expect(cohortSetTitle(rev(3))).toBe('Week 5 · Extended week for Revision · Day 3');
+    expect(revisionWeekOf(rev(3))).toEqual({ week: 5, day: 3 });
+    expect(cohortTabOfSet(rev(3))).toBe('C1');
+    expect(cohortAssignmentTopic(rev(2))).toBe('C1 · Week 5 · Extended week for Revision · Day 2');
+    expect(parseAssignmentTopic('C1 · Week 5 · Extended week for Revision · Day 2')).toEqual({ cohort: 'C1', label: 'Week 5 · Extended week for Revision · Day 2' });
+  });
+
+  it('is not mistaken for an extension week, and extension weeks are not mistaken for it', () => {
+    expect(extensionOf(rev(1))).toBeNull();
+    expect(revisionWeekOf({ dayFocus: 'Week 3 Extended \u2014 Stacks & queues', dailyTheme: null, setKey: 'G1-C1-W8-D1', day: 1 })).toBeNull();
+    expect(cohortSetTitle({ group: 'GROUP_1', belt: 5, week: 8, day: 1, dayFocus: 'Week 3 Extended \u2014 Stacks & queues', setKey: 'G1-C1-W8-D1' })).toBe('Week 3 Extended · Day 1');
   });
 });
