@@ -35,7 +35,7 @@ this repo (they hold student emails); only the method and the reusable SQL are.
    Match on **email and handle**: some existing rows have no email, and archiving by email
    alone would remove people who *are* on the roster. Fill in missing emails from the roster.
 5. **Run `apps/api/scripts/sql/onboard-campus.sql`** (dry-run first with `-v finish=ROLLBACK`).
-   It creates the campus (disabled), `C1`/`C2`/`C3`, the students, and the campus + batch
+   It creates the campus (disabled) - or reuses an existing campus that is still empty, e.g. one created earlier for its mentors - plus `C1`/`C2`/`C3`, the students, and the campus + batch
    placement history, asserting every count. Pass `-v effective_day=` as the cohort's **real
    first day** (e.g. the session day), not today: enrolment and placement are dated from it,
    and the rollup skips any day before a student's enrolment. Getting this wrong makes Day 1

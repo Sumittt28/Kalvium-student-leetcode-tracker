@@ -1,4 +1,4 @@
--- Onboard a new Coding Hours campus: campus + one batch per cohort + students + placement history.
+-- Onboard a Coding Hours campus: campus (created, or an existing EMPTY one) + one batch per cohort + students + placement history.
 --
 -- See docs/ONBOARDING_NEW_CAMPUS.md for the whole procedure (handle checks, backup, mentors,
 -- Day 1). This file is the transactional part, and it is deliberately defensive: every
@@ -59,13 +59,19 @@ BEGIN
   IF clash <> 0 THEN
     RAISE EXCEPTION '% roster rows already exist in the tool (by email or handle)', clash;
   END IF;
-  IF EXISTS (SELECT 1 FROM campuses WHERE code = current_setting('app.campus_code')) THEN
-    RAISE EXCEPTION 'campus % already exists', current_setting('app.campus_code');
+  -- A campus may already exist (e.g. created with its mentors before the students arrived), but
+  -- only if it is still empty: no students and no batches. Anything else needs a human.
+  IF EXISTS (SELECT 1 FROM campuses c WHERE c.code = current_setting('app.campus_code')
+       AND (EXISTS (SELECT 1 FROM students s WHERE s."campusId" = c.id)
+         OR EXISTS (SELECT 1 FROM batches b WHERE b."campusId" = c.id))) THEN
+    RAISE EXCEPTION 'campus % already has students or batches; onboard it by hand', current_setting('app.campus_code');
   END IF;
 END $$;
 
+-- Create the campus unless it already exists (empty). An existing one is left exactly as it is.
 INSERT INTO campuses (id, name, code, status, "sortOrder", "updatedAt", "codingHoursEnabled")
-VALUES (gen_random_uuid(), :'campus_name', :'campus_code', 'ACTIVE', 0, now(), false);
+SELECT gen_random_uuid(), :'campus_name', :'campus_code', 'ACTIVE', 0, now(), false
+WHERE NOT EXISTS (SELECT 1 FROM campuses WHERE code = :'campus_code');
 
 -- One batch per cohort. Audience resolution matches on campus + batch, so two cohorts in one
 -- batch would share a problem set. C1/C2/C3 hold cohort 1/2/3 (see cohortForBatchCode).
