@@ -680,10 +680,16 @@ export class AssignmentsService {
       this.prisma.assignment.findMany({
         where,
         include: this.include(),
+        // Many campuses share a sortOrder, so the last keys exist only to make the order total:
+        // without them rows that tie can swap places between pages (a row shown twice, another
+        // never shown). `id` is the final tiebreaker.
         orderBy: [
           { dayKey: 'desc' },
           { campus: { sortOrder: 'asc' } },
+          { campusId: 'asc' },
           { batch: { sortOrder: 'asc' } },
+          { cohort: 'asc' },
+          { id: 'asc' },
         ],
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
